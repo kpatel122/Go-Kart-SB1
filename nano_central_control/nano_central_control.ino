@@ -16,12 +16,43 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 int ForwardMotorSpeed = 255;
 int ReverseMotorSpeed = 255;
 
-
 /*Serial*/
 #define BAUD 115200
 int IncomingSerialValue = 0;
 
-void InitPins()
+/*input switches*/
+#define ACCELERATOR_PIN 2 //must be interrupt pin
+#define GEAR_SHIFT_UP_PIN 3
+#define GEAR_SHIFT_DOWN_PIN 4
+
+/*GEAR states*/
+enum GEAR
+{
+  NEUTRAL = 0,
+  FIRST = 1,
+  SECOND = 2,
+  REVERSE = 3
+};
+
+enum GEAR_SHIFT
+{
+  GEAR_SHIFT_NONE =0,
+  GEAR_SHIFT_UP = 1,
+  GEAR_SHIFT_DOWN = 2
+};
+
+GEAR_SHIFT NextGearShift = GEAR_SHIFT_NONE;
+GEAR CurrentGear = NEUTRAL;
+GEAR NewGear = NEUTRAL;
+
+void InitControlPins()
+{
+  pinMode(ACCELERATOR_PIN, INPUT_PULLUP);
+  pinMode(GEAR_SHIFT_UP_PIN, INPUT_PULLUP);
+  pinMode(GEAR_SHIFT_DOWN_PIN, INPUT_PULLUP);
+}
+
+void InitMotorPins()
 {
   pinMode(RPWM,OUTPUT);
   digitalWrite(RPWM,LOW);
@@ -59,16 +90,33 @@ void MotorReverse()
   digitalWrite(LPWM,ReverseMotorSpeed);
 }
 
-
+void AcceleratorChange()
+{
+  if(digitalRead(ACCELERATOR_PIN) == HIGH)
+  {
+    MotorStop();
+    digitalWrite(LED_BUILTIN, LOW);
+  }
+  else
+  {
+    digitalWrite(LED_BUILTIN, HIGH);
+    MotorForward();
+  
+  }
+}
 
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(BAUD);
 
-  InitPins();
+  InitMotorPins();
+  InitControlPins();
 
   digitalWrite(L_EN,HIGH);
   digitalWrite(R_EN,HIGH);
+
+  attachInterrupt(digitalPinToInterrupt(ACCELERATOR_PIN), AcceleratorChange, CHANGE);
+  pinMode(LED_BUILTIN, OUTPUT);
 }
 
 void ProcessInput(int ivalue)
@@ -97,12 +145,62 @@ void ProcessInput(int ivalue)
   }
 }
 
+bool CheckForGearShift()
+{
+  if(digitalRead(GEAR_SHIFT_UP_PIN) == LOW)
+  {
+    NextGearShift = GEAR_SHIFT_UP;
+    return true;
+  }
+  else if(digitalRead(GEAR_SHIFT_DOWN_PIN) == LOW)
+  {
+    NextGearShift = GEAR_SHIFT_DOWN;
+    return true;
+  }
+
+  return false;
+}
+
+void ProcessGearShift()
+{
+  if(NextGearShift == GEAR_SHIFT_UP)
+  {
+    if(CurrentGear == NEUTRAL)
+    {
+      CurrentGear = FIRST;
+      Serial.println("UP FIRST");
+      return;
+    }
+    if(CurrentGear == REVERSE)
+    {
+      CurrentGear = NEUTRAL;
+      Serial.println("UP NEUTRAL");
+      return;
+    }
+  }
+  else if(NextGearShift == GEAR_SHIFT_DOWN)
+  {
+    if(CurrentGear == NEUTRAL)
+    {
+      CurrentGear = REVERSE;
+      Serial.println("DOWN REVERSE");
+      return;
+    }
+    if(CurrentGear == FIRST)
+    {
+      CurrentGear = NEUTRAL;
+      Serial.println("DOWN NEUTRAL");
+      return;
+    }
+  }
+  
+}
+
 void loop() {
   // put your main code here, to run repeatedly:
-  if(Serial.available() > 0)
+  if(CheckForGearShift() == true)
   {
-    IncomingSerialValue = Serial.read();
-    ProcessInput(IncomingSerialValue);
+    ProcessGearShift();
   }
 
 }

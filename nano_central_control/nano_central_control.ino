@@ -26,25 +26,17 @@ String IncomingSerialString = "";
 #define GEAR_SHIFT_UP_PIN 3
 #define GEAR_SHIFT_DOWN_PIN 4
 
+void (*pMotorMove)();
+
+
 /*GEAR states*/
 enum GEAR
 {
-  NEUTRAL = 0,
-  FIRST = 1,
-  SECOND = 2,
-  REVERSE = 3
+	GEAR_REVERSE = 0,
+	GEAR_NEUTRAL = 1,
+	GEAR_FIRST = 2,
+	GEAR_SECOND = 3
 };
-
-enum GEAR_SHIFT
-{
-  GEAR_SHIFT_NONE =0,
-  GEAR_SHIFT_UP = 1,
-  GEAR_SHIFT_DOWN = 2
-};
-
-GEAR_SHIFT NextGearShift = GEAR_SHIFT_NONE;
-GEAR CurrentGear = NEUTRAL;
-GEAR NewGear = NEUTRAL;
 
 void InitControlPins()
 {
@@ -91,6 +83,12 @@ void MotorReverse()
   digitalWrite(LPWM,ReverseMotorSpeed);
 }
 
+void MotorNeutral()
+{
+
+
+}
+
 void AcceleratorChange()
 {
   if(digitalRead(ACCELERATOR_PIN) == HIGH)
@@ -101,8 +99,7 @@ void AcceleratorChange()
   else
   {
     digitalWrite(LED_BUILTIN, HIGH);
-    MotorForward();
-
+    pMotorMove();
   }
 }
 
@@ -116,106 +113,46 @@ void setup() {
   digitalWrite(L_EN,HIGH);
   digitalWrite(R_EN,HIGH);
 
+  pMotorMove = MotorNeutral; //start off in neutral
+
   attachInterrupt(digitalPinToInterrupt(ACCELERATOR_PIN), AcceleratorChange, CHANGE);
   pinMode(LED_BUILTIN, OUTPUT);
 }
 
-void ProcessInput(int ivalue)
-{
-  switch (ivalue)
-  {
-    case 'f':
-    {
-      MotorForward();
-      Serial.println("forward");
-    }break;
-    case 'r':
-    {
-      MotorReverse();
-      Serial.println("reverse");
-    }break;
-    case 's':
-    {
-      MotorStop();
-      Serial.println("stop");
-    }break;
-    default:
-    {
-      Serial.println("invalid input");
-    }
-  }
-}
 
-bool CheckForGearShift()
-{
-  if(digitalRead(GEAR_SHIFT_UP_PIN) == LOW)
-  {
-    NextGearShift = GEAR_SHIFT_UP;
-    return true;
-  }
-  else if(digitalRead(GEAR_SHIFT_DOWN_PIN) == LOW)
-  {
-    NextGearShift = GEAR_SHIFT_DOWN;
-    return true;
-  }
 
-  return false;
-}
 
-void ProcessGearShift()
+
+void ProcessScreenControlCommand(byte iCommand)
 {
-  if(NextGearShift == GEAR_SHIFT_UP)
-  {
-    if(CurrentGear == NEUTRAL)
-    {
-      CurrentGear = FIRST;
-      Serial.println("UP FIRST");
-      return;
-    }
-    if(CurrentGear == REVERSE)
-    {
-      CurrentGear = NEUTRAL;
-      Serial.println("UP NEUTRAL");
-      return;
-    }
-  }
-  else if(NextGearShift == GEAR_SHIFT_DOWN)
-  {
-    if(CurrentGear == NEUTRAL)
-    {
-      CurrentGear = REVERSE;
-      Serial.println("DOWN REVERSE");
-      return;
-    }
-    if(CurrentGear == FIRST)
-    {
-      CurrentGear = NEUTRAL;
-      Serial.println("DOWN NEUTRAL");
-      return;
-    }
-  }
+	switch(iCommand)
+	{
+		case GEAR_FIRST:
+		{
+			pMotorMove = MotorForward;
+			Serial.println("F");
+		}break;
+		case GEAR_REVERSE:
+		{
+			pMotorMove = MotorReverse;
+			Serial.println("R");
+		}break;
+		case GEAR_NEUTRAL:
+		{
+			pMotorMove = MotorNeutral;
+		  	Serial.println("N");
+		}break;
+	}
 
 }
-
-void loop() {
+byte incomingByte;
+void loop()
+{
 
   if(Serial.available() > 0)
   {
-	  IncomingSerialString = Serial.readString();
-	  Serial.println("STM32: " + IncomingSerialString);
-
-	  /*
-	  if(IncomingByte == 1)
-	  {
-		  digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
-		  Serial.write(1);//ping back
-	  }
-	  if(IncomingByte == 2)
-	  {
-		  digitalWrite(LED_BUILTIN, LOW);   // turn the LED on (HIGH is the voltage level)
-		  Serial.write(2);//ping back
-	  }
-	  */
+	  incomingByte = Serial.read();
+	  ProcessScreenControlCommand(incomingByte);
 
   }
 

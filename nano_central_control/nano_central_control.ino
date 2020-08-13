@@ -19,6 +19,7 @@ int ReverseMotorSpeed = 255;
 /*Serial*/
 #define BAUD 115200
 int IncomingSerialValue = 0;
+String IncomingSerialString = "";
 
 /*input switches*/
 #define ACCELERATOR_PIN 2 //must be interrupt pin
@@ -74,7 +75,7 @@ void SetMotorSpeed(int iNewSpeed)
 
 void MotorForward()
 {
-  
+
   digitalWrite(RPWM,ForwardMotorSpeed);
 }
 
@@ -86,7 +87,7 @@ void MotorStop()
 
 void MotorReverse()
 {
-  
+
   digitalWrite(LPWM,ReverseMotorSpeed);
 }
 
@@ -101,7 +102,7 @@ void AcceleratorChange()
   {
     digitalWrite(LED_BUILTIN, HIGH);
     MotorForward();
-  
+
   }
 }
 
@@ -193,7 +194,7 @@ void ProcessGearShift()
       return;
     }
   }
-  
+
 }
 
 void loop() {
@@ -201,6 +202,27 @@ void loop() {
   if(CheckForGearShift() == true)
   {
     ProcessGearShift();
+  }
+  if(Serial.available() > 0)
+  {
+	  //IncomingSerialString = Serial.readString();
+	  //Serial.print("REC: " + IncomingSerialString);
+
+	  byte IncomingByte = Serial.read();
+	  //Serial.print("STM32: ");
+	  //Serial.println(IncomingByte);
+
+	  if(IncomingByte == 1)
+	  {
+		  digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
+		  Serial.write(1);//ping back
+	  }
+	  if(IncomingByte == 2)
+	  {
+		  digitalWrite(LED_BUILTIN, LOW);   // turn the LED on (HIGH is the voltage level)
+		  Serial.write(2);//ping back
+	  }
+
   }
 
 }

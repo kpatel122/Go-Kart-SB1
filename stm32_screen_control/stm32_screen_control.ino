@@ -36,6 +36,9 @@ void showmsgXY(int x, int y, int sz, const GFXfont *f, const char *msg)
 void setup(void)
 {
     Serial.begin(115200);
+
+    Serial3.begin(115200);
+
     uint16_t ID = tft.readID();
     Serial.println("Example: Font_simple");
     Serial.print("found ID = 0x");
@@ -43,17 +46,66 @@ void setup(void)
     if (ID == 0xD3D3) ID = 0x9481; //force ID if write-only display
     tft.begin(ID);
     tft.setRotation(0);
+
+    pinMode(LED_BUILTIN, OUTPUT);
 }
 
+String IncomingSerialString = "";
+byte IncomingByte;
 void loop(void)
 {
 
 	uint16_t ID = tft.readID();
-	    Serial.println("Example: Font_simple");
-	    Serial.print("found ID = 0x");
-	    Serial.println(ID, HEX);
 
 
+
+	Serial3.write(1);
+	//Serial3.flush();
+	delay(5000);
+
+	if(Serial3.available() > 0)
+		  {
+
+			IncomingByte = Serial3.read();
+
+			  if(IncomingByte == 1)
+			  {
+				  digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
+
+			  }
+			  if(IncomingByte == 2)
+			  {
+				  digitalWrite(LED_BUILTIN, LOW);   // turn the LED on (HIGH is the voltage level)
+
+			  }
+		  }
+
+
+	Serial3.write(2);
+	//Serial3.flush();
+	delay(5000);
+
+
+	if(Serial3.available() > 0)
+		  {
+
+			 IncomingByte = Serial3.read();
+
+			  if(IncomingByte == 1)
+			  {
+				  digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
+
+			  }
+			  if(IncomingByte == 2)
+			  {
+				  digitalWrite(LED_BUILTIN, LOW);   // turn the LED on (HIGH is the voltage level)
+
+			  }
+		  }
+
+
+
+/*
     tft.fillScreen(BLACK);
     showmsgXY(20, 10, 1, NULL, "System x1");
     showmsgXY(20, 24, 2, NULL, "System x2");
@@ -78,6 +130,7 @@ void loop(void)
     delay(1000);
     showmsgXY(5, 310, 1, &FreeSans9pt7b, "erase backgnd with fillRect()");
     delay(10000);
+    */
 
 }
 

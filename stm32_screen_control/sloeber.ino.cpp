@@ -2,7 +2,7 @@
 //This is a automatic generated file
 //Please do not modify this file
 //If you touch this file your change will be overwritten during the next build
-//This file has been generated on 2020-08-13 12:36:13
+//This file has been generated on 2020-08-13 13:44:19
 
 #include "Arduino.h"
 #include "Arduino.h"
@@ -19,7 +19,10 @@ extern MCUFRIEND_kbv tft;
 #include <Fonts/FreeSans12pt7b.h>
 #include <Fonts/FreeSerif12pt7b.h>
 
+void InitControlPins() ;
 void showmsgXY(int x, int y, int sz, const GFXfont *f, const char *msg) ;
+bool CheckForGearShift() ;
+void ProcessGearShift() ;
 void setup(void) ;
 void loop(void) ;
 

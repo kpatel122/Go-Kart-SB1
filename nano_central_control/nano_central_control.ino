@@ -198,20 +198,13 @@ void ProcessGearShift()
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  if(CheckForGearShift() == true)
-  {
-    ProcessGearShift();
-  }
+
   if(Serial.available() > 0)
   {
-	  //IncomingSerialString = Serial.readString();
-	  //Serial.print("REC: " + IncomingSerialString);
+	  IncomingSerialString = Serial.readString();
+	  Serial.println("STM32: " + IncomingSerialString);
 
-	  byte IncomingByte = Serial.read();
-	  //Serial.print("STM32: ");
-	  //Serial.println(IncomingByte);
-
+	  /*
 	  if(IncomingByte == 1)
 	  {
 		  digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
@@ -222,6 +215,7 @@ void loop() {
 		  digitalWrite(LED_BUILTIN, LOW);   // turn the LED on (HIGH is the voltage level)
 		  Serial.write(2);//ping back
 	  }
+	  */
 
   }
 

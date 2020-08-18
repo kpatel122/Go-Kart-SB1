@@ -14,6 +14,7 @@ MCUFRIEND_kbv tft;
 #include <Fonts/FreeSerif12pt7b.h>
 #include <Fonts/FreeSansBold24pt7b.h>
 
+
 //LCD pins  |D7 |D6 |D5 |D4 |D3 |D2 |D1 |D0 | |RD |WR |RS |CS |RST| |SD_SS|SD_DI|SD_DO|SD_SCK|
 //STM32 pin |PA7|PA6|PA5|PA4|PA3|PA2|PA1|PA0| |PB0|PB6|PB7|PB8|PB9| |PA15 |PB5  |PB4  |PB3   | **ALT-SPI1**
 
@@ -41,9 +42,9 @@ GEAR_SHIFT NextGearShift = GEAR_SHIFT_NONE;
 GEAR CurrentGear = GEAR_NEUTRAL;
 GEAR NewGear = GEAR_NEUTRAL;
 
-
 /*Serial*/
 #define BAUD 115200
+
 
 void InitControlPins()
 {

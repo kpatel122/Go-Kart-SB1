@@ -41,5 +41,10 @@
 			<type>2</type>
 			<location>C:/Program Files (x86)/Arduino/hardware/arduino/avr/variants/eightanaloginputs</location>
 		</link>
+		<link>
+			<name>libraries/ezButton</name>
+			<type>2</type>
+			<location>C:/Users/sys/Documents/Arduino/libraries/ezButton</location>
+		</link>
 	</linkedResources>
 </projectDescription>

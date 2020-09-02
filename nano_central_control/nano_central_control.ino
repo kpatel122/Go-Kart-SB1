@@ -8,11 +8,18 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-
 /* soft start motor ramping */
 const byte RAMP_FORWARD_START_SPEED = 128;
 const byte  RAMP_FORWARD_END_SPEED  = 255;
-const byte  RAMP_FORWARD_TIME_SECONDS = 5;
+
+const byte  RAMP_FORWARD_TIME_SECONDS = 4;
+#define  RAMP_FORWARD_RESOLUTION 1000 //how often the ramp speed is updated in millis
+
+/* going from full speed to zero will cause a jerk for the user, so use a smooth stop*/
+#define  RAMP_DECELERATE_RESOLUTION 1000 //how often the ramp speed is updated in millis
+#define  RAMP_DECELERATE_TIME 500 //how quickly we should stop
+
+byte DecelerateStartSpeed = 0;
 
 const byte  RAMP_REVERSE_START_SPEED = 128;
 const byte  RAMP_REVERSE_END_SPEED = 200;
@@ -20,22 +27,31 @@ const byte  RAMP_REVERSE_TIME_SECONDS = 2;
 
 byte RampStartSpeed = RAMP_FORWARD_START_SPEED;
 byte RampEndSpeed = RAMP_FORWARD_END_SPEED;
-byte RampSpeedDelta = RAMP_FORWARD_END_SPEED - RAMP_FORWARD_START_SPEED;
-byte RampTimeSeconds = RAMP_FORWARD_TIME_SECONDS;
+const byte RampSpeedDelta = RAMP_FORWARD_END_SPEED - RAMP_FORWARD_START_SPEED;
+const byte RampTimeSeconds = RAMP_FORWARD_TIME_SECONDS;
 
-const byte  MINIMUM_STATIONARY_TIME_SECONDS = 2;
+const byte MINIMUM_STATIONARY_TIME_SECONDS = 2;
+
+unsigned long LastDebounceTime = 0;  // the last time the output pin was toggled
+unsigned long DebounceDelay = 200;
+int LastPedalState = HIGH;
+
+
 
 enum RAMP_STATE
 {
 	RAMP_NOT_READY,
 	RAMP_READY,
-	RAMP_STARTED,
+	RAMP_STARTED_DECELERATING,
+	RAMP_STARTED_ACCELERATING,
 	RAMP_STOPPED,
-	RAMP_PROCESSING,
-	RAMP_FINISHED
+	RAMP_ACCELERATING,
+	RAMP_DECELERATING,
+	RAMP_FINISHED_ACCELERATING,
+	RAMP_FINISHED_DECELERATING
 };
 
-volatile RAMP_STATE RampState = RAMP_NOT_READY;
+volatile RAMP_STATE RampState = RAMP_FINISHED_DECELERATING;
 
 
 /* kart state machine */
@@ -68,7 +84,9 @@ int IncomingSerialValue = 0;
 String IncomingSerialString = "";
 
 /*input switches*/
-#define ACCELERATOR_PIN 2 //must be interrupt pin
+#define ACCELERATOR_PIN 2 //must be interrupt pin7
+
+
 #define GEAR_SHIFT_UP_PIN 3
 #define GEAR_SHIFT_DOWN_PIN 4
 
@@ -89,7 +107,7 @@ enum GEAR
 
 void InitControlPins()
 {
-  pinMode(ACCELERATOR_PIN, INPUT_PULLUP);
+  pinMode(ACCELERATOR_PIN,INPUT); //external pullup
   pinMode(GEAR_SHIFT_UP_PIN, INPUT_PULLUP);
   pinMode(GEAR_SHIFT_DOWN_PIN, INPUT_PULLUP);
 }
@@ -116,9 +134,6 @@ void SetMotorSpeed(int iNewSpeed)
 
 void MotorForward()
 {
-
-
-
 	analogWrite(RPWM,CurrMotorSpeed);
 }
 
@@ -130,7 +145,6 @@ void MotorStop()
 
 void MotorReverse()
 {
-
 	analogWrite(LPWM,CurrMotorSpeed);
 }
 
@@ -146,51 +160,118 @@ void MotorEnable()
 	digitalWrite(R_EN,HIGH);
 }
 
+
+void InterruptAcceleratorReleased()
+{
+	if(RampState != RAMP_DECELERATING ) //&& RampState !=RAMP_FINISHED)
+	{
+		RampState = RAMP_STARTED_DECELERATING;
+		digitalWrite(LED_BUILTIN,HIGH);
+	}
+}
+
+
 void InterruptAcceleratorChange()
 {
-  int value = digitalRead(ACCELERATOR_PIN) ;
-  if(value== HIGH)
+
+
+  static unsigned long last_interrupt_time = 0;
+  unsigned long interrupt_time = millis();
+
+  // If interrupts come faster than 200ms, assume it's a bounce and ignore
+  if (interrupt_time - last_interrupt_time > DebounceDelay)
   {
+	  int value = digitalRead(ACCELERATOR_PIN) ;
+	  if(value== HIGH)
+	  {
 
-    MotorStop();
-    RampState = RAMP_FINISHED;
+		  //MotorStop();
+		  //RampState = RAMP_STARTED_DECELERATING;
+		  //Serial.println("D");
+		 // RampState = RAMP_STARTED_DECELERATING;
+		 //RampState = RAMP_STARTED_DECELERATING;
 
+	  }
+	  else if(value == LOW)
+	  {
+
+
+		  //RampState = RAMP_STARTED_ACCELERATING;
+		  //Serial.println("A");
+	  }
+
+	  last_interrupt_time = interrupt_time;
   }
-  else if(value == LOW)
-  {
 
-	  RampState = RAMP_STARTED;
-  }
 }
 
 void ProcessRamp()
 {
 	static unsigned long starttime;
 	unsigned long timedelta;
-	static int secondscounter = 0;
+	static long resolutioncounter = 0;
 
 	switch(RampState)
 	{
-		case RAMP_PROCESSING:
+		case RAMP_DECELERATING:
 		{
-			//Serial.print("RAMP_PROCESSING ");
+
 			timedelta = millis() - starttime;
+			CurrMotorSpeed = map(timedelta, 0, RAMP_DECELERATE_TIME, DecelerateStartSpeed, 0);
+
+			//Serial.print("Deceleration time ");
+			//Serial.println((int)timedelta);
+
+			Serial.print("D Motor Speed ");
+			Serial.println(CurrMotorSpeed);
+			MotorForward();
 
 
-
-			if((int)(timedelta / 1000) >=1)
+			if(CurrMotorSpeed <= 0)
 			{
-				secondscounter++;
+
+				Serial.println("*DECELERATING Complete*");
+				RampState = RAMP_FINISHED_DECELERATING;
+				digitalWrite(LED_BUILTIN,LOW);
+
+			}
+
+
+
+		}break;
+		case RAMP_ACCELERATING:
+		{
+
+
+
+			timedelta = millis() - starttime;
+			CurrMotorSpeed = map(timedelta, 0, RAMP_FORWARD_TIME_SECONDS*1000, DecelerateStartSpeed, RampEndSpeed);
+
+			//Serial.print("Deceleration time ");
+			//Serial.println((int)timedelta);
+
+			Serial.print("A Motor Speed ");
+			Serial.println(CurrMotorSpeed);
+			MotorForward();
+
+
+			/*
+			//if((int)(timedelta) >=1000)
+			if((int)(timedelta) >= RAMP_FORWARD_RESOLUTION)
+			{
+				resolutioncounter++;
 
 
 				//reset the time countr
 				starttime = millis();
 				timedelta = 0;
 
-				CurrMotorSpeed = map(secondscounter, 0, RampTimeSeconds, RampStartSpeed, RampEndSpeed);
+				CurrMotorSpeed = map(resolutioncounter, 0, RampTimeSeconds, RampStartSpeed, RampEndSpeed);
+				//CurrMotorSpeed = map(timedelta, 0, (RampTimeSeconds), RampStartSpeed, RampEndSpeed);
 
-				Serial.print("Seconds ");
-				Serial.println(secondscounter);
+
+				Serial.print("resolution ");
+				Serial.println(resolutioncounter);
 
 				Serial.print("Motor Speed ");
 				Serial.println(CurrMotorSpeed);
@@ -200,10 +281,19 @@ void ProcessRamp()
 
 			}
 
-			if(secondscounter >= RampTimeSeconds)
+			*/
+
+
+			//if(resolutioncounter >= (RampTimeSeconds*1000))
+			//{
+			//	Serial.println("***********Ramp Complete******** ");
+			//	RampState = RAMP_FINISHED;
+			//}
+
+			if(CurrMotorSpeed >= RampEndSpeed)
 			{
 				Serial.println("***********Ramp Complete******** ");
-				RampState = RAMP_FINISHED;
+				RampState = RAMP_FINISHED_ACCELERATING;
 			}
 
 
@@ -227,16 +317,32 @@ void ProcessRamp()
 		{
 
 		}break;
-		case RAMP_STARTED:
+		case RAMP_STARTED_ACCELERATING:
 		{
-			Serial.print("RAMP_STARTED ");
-			Serial.println("setting: RAMP_PROCESSING ");
-			RampState = RAMP_PROCESSING;
+			Serial.println("A");
+			RampState = RAMP_ACCELERATING;
 			starttime = millis();
-			secondscounter = 0;
+			resolutioncounter = 0;
 			timedelta = 0;
-			CurrMotorSpeed = RampStartSpeed;
+			//CurrMotorSpeed = RampStartSpeed;
+			DecelerateStartSpeed = CurrMotorSpeed;
 			pMotorMove();
+
+
+		}break;
+		case RAMP_STARTED_DECELERATING:
+		{
+			Serial.println("D");
+			RampState = RAMP_DECELERATING;
+			starttime = millis();
+			resolutioncounter = 0;
+			timedelta = 0;
+			DecelerateStartSpeed = CurrMotorSpeed;
+
+			//digitalWrite(LED_BUILTIN, HIGH);
+
+			//RampState = RAMP_FINISHED;
+
 
 		}break;
 		case RAMP_STOPPED:
@@ -246,8 +352,10 @@ void ProcessRamp()
 			//RampState = RAMP_FINISHED;
 
 		}break;
-		case RAMP_FINISHED:
+		case RAMP_FINISHED_DECELERATING:
+		case RAMP_FINISHED_ACCELERATING:
 		{
+
 
 		}break;
 	}
@@ -325,6 +433,12 @@ void ProcessState()
 
 }
 
+int CheckButton()
+{
+	int value = digitalRead(ACCELERATOR_PIN) ;
+	return value;
+}
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(BAUD);
@@ -334,25 +448,35 @@ void setup() {
 
   pMotorMove = MotorNeutral; //start off in neutral
 
-  attachInterrupt(digitalPinToInterrupt(ACCELERATOR_PIN), InterruptAcceleratorChange, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ACCELERATOR_PIN), InterruptAcceleratorReleased, RISING);
   pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, LOW);
 
-  //tmp for testing only
+  //tmp for testing only- gear shifts disabled
   MotorEnable();
   pMotorMove = MotorForward;
+
+  RampState = RAMP_FINISHED_DECELERATING;
 }
 
 void loop()
 {
 
+	/*
   if(Serial.available() > 0)
   {
-	  //incomingByte = Serial.read();
-	  //ProcessScreenControlCommand(incomingByte);
+	  incomingByte = Serial.read();
+	  ProcessScreenControlCommand(incomingByte);
 
   }
+  */
 
   //ProcessState();
+  if(CheckButton() == LOW && (RampState == RAMP_FINISHED_DECELERATING))
+  {
+	  Serial.println("St A");
+	  RampState = RAMP_STARTED_ACCELERATING;
+  }
   ProcessRamp();
 
 }

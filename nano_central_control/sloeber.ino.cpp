@@ -2,7 +2,7 @@
 //This is a automatic generated file
 //Please do not modify this file
 //If you touch this file your change will be overwritten during the next build
-//This file has been generated on 2020-08-18 14:02:22
+//This file has been generated on 2020-09-02 19:23:17
 
 #include "Arduino.h"
 
@@ -14,11 +14,13 @@ void MotorStop() ;
 void MotorReverse() ;
 void MotorNeutral() ;
 void MotorEnable() ;
+void InterruptAcceleratorReleased() ;
 void InterruptAcceleratorChange() ;
 void ProcessRamp() ;
 void ProcessScreenControlCommand(byte iCommand) ;
 void SetState(byte iNewState)  ;
 void ProcessState() ;
+int CheckButton() ;
 void setup() ;
 void loop() ;
 

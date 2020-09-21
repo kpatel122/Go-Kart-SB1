@@ -9,15 +9,21 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 */
 
 /* soft start motor ramping */
-const byte RAMP_FORWARD_START_SPEED = 128;
 const byte  RAMP_FORWARD_END_SPEED  = 255;
+const byte  RAMP_FORWARD_TIME_SECONDS = 4; // how long it takes to get to max speed
 
-const byte  RAMP_FORWARD_TIME_SECONDS = 4;
+#define  RAMP_DECELERATE_TIME 1000 //how quickly we should stop
+
+
+const byte RAMP_FORWARD_START_SPEED = 128;
+
+
+
 #define  RAMP_FORWARD_RESOLUTION 1000 //how often the ramp speed is updated in millis
 
 /* going from full speed to zero will cause a jerk for the user, so use a smooth stop*/
 #define  RAMP_DECELERATE_RESOLUTION 1000 //how often the ramp speed is updated in millis
-#define  RAMP_DECELERATE_TIME 500 //how quickly we should stop
+
 
 byte DecelerateStartSpeed = 0;
 
@@ -69,11 +75,10 @@ enum KART_STATE
 KART_STATE CurrState = STATE_OFF;
 KART_STATE PrevState = STATE_OFF;
 
-/* BTS7960 module*/
-#define RPWM 5
-#define LPWM 6
-#define L_EN 7
-#define R_EN 8
+/* Cytron MD20A module*/
+#define MOTOR_DRIVER_PWM_PIN 6
+#define MOTOR_DRIVER_DIR_PIN 4
+
 int ForwardMotorSpeed = 255;
 int ReverseMotorSpeed = 255;
 int CurrMotorSpeed = 0;
@@ -84,7 +89,7 @@ int IncomingSerialValue = 0;
 String IncomingSerialString = "";
 
 /*input switches*/
-#define ACCELERATOR_PIN 2 //must be interrupt pin7
+#define ACCELERATOR_PIN 2 //must be interrupt pin
 
 
 #define GEAR_SHIFT_UP_PIN 3
@@ -114,17 +119,12 @@ void InitControlPins()
 
 void InitMotorPins()
 {
-  pinMode(RPWM,OUTPUT);
-  digitalWrite(RPWM,LOW);
+  pinMode(MOTOR_DRIVER_PWM_PIN,OUTPUT);
+  digitalWrite(MOTOR_DRIVER_PWM_PIN,LOW);
 
-  pinMode(LPWM,OUTPUT);
-  digitalWrite(LPWM,LOW);
 
-  pinMode(L_EN,OUTPUT);
-  digitalWrite(L_EN,LOW);
-
-  pinMode(R_EN,OUTPUT);
-  digitalWrite(R_EN,LOW);
+  pinMode(MOTOR_DRIVER_DIR_PIN,OUTPUT);
+  digitalWrite(MOTOR_DRIVER_DIR_PIN,LOW);
 }
 
 void SetMotorSpeed(int iNewSpeed)
@@ -134,30 +134,29 @@ void SetMotorSpeed(int iNewSpeed)
 
 void MotorForward()
 {
-	analogWrite(RPWM,CurrMotorSpeed);
+	analogWrite(MOTOR_DRIVER_PWM_PIN,CurrMotorSpeed);
 }
 
 void MotorStop()
 {
-  digitalWrite(RPWM,0);
-  digitalWrite(LPWM,0);
+  digitalWrite(MOTOR_DRIVER_PWM_PIN,0);
+
 }
 
 void MotorReverse()
 {
-	analogWrite(LPWM,CurrMotorSpeed);
+//	analogWrite(LPWM,CurrMotorSpeed);
 }
 
 void MotorNeutral()
 {
-	  digitalWrite(L_EN,LOW); //free wheeling mode
-	  digitalWrite(R_EN,LOW);
+//	  digitalWrite(L_EN,LOW); //free wheeling mode
+//	  digitalWrite(MOTOR_DRIVER_DIR_PIN,LOW);
 }
 
 void MotorEnable()
 {
-	digitalWrite(L_EN,HIGH);
-	digitalWrite(R_EN,HIGH);
+	digitalWrite(MOTOR_DRIVER_DIR_PIN,HIGH);
 }
 
 

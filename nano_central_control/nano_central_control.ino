@@ -461,19 +461,14 @@ void setup() {
 void loop()
 {
 
-	/*
-  if(Serial.available() > 0)
-  {
-	  incomingByte = Serial.read();
-	  ProcessScreenControlCommand(incomingByte);
+ 
 
-  }
-  */
+ 
 
-  //ProcessState();
+  //throttle pressed and we have stopped
   if(CheckButton() == LOW && (RampState == RAMP_FINISHED_DECELERATING))
   {
-	  Serial.println("St A");
+	  //Serial.println("St A");
 	  RampState = RAMP_STARTED_ACCELERATING;
   }
   ProcessRamp();

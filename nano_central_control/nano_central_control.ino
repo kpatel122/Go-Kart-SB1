@@ -24,9 +24,9 @@ const byte RAMP_FORWARD_START_SPEED = 128;
 /* going from full speed to zero will cause a jerk for the user, so use a smooth stop*/
 #define  RAMP_DECELERATE_RESOLUTION 1000 //how often the ramp speed is updated in millis
 
-#define ENGINE_START_BUTTON_DEBOUNCE 1000
+#define ENGINE_START_BUTTON_DEBOUNCE 1000 //debounce speed between engine button presses
 
-byte DecelerateStartSpeed = 0;
+byte RampStartSpeed = 0; //the motor speed when we we start ramping (accelerate or decelerate)
 
 const byte  RAMP_REVERSE_START_SPEED = 128;
 const byte  RAMP_REVERSE_END_SPEED = 200;
@@ -90,7 +90,7 @@ int IncomingSerialValue = 0;
 String IncomingSerialString = "";
 
 /*input switches*/
-#define ACCELERATOR_PIN 2 //must be interrupt pin
+#define THROTTLE_PIN 2 //must be interrupt pin
 #define ENGINE_START_BUTTON_PIN 3
 
 
@@ -114,20 +114,26 @@ enum GEAR
 
 GEAR currentGear = GEAR_FIRST;
 
+void InitISR()
+{
+	//initialise interrupts
+	attachInterrupt(digitalPinToInterrupt(THROTTLE_PIN), ThrottleReleasedISR, RISING);
+    attachInterrupt(digitalPinToInterrupt(ENGINE_START_BUTTON_PIN), EngineStartButtonISR, FALLING); 
+}
+
 void InitControlPins()
 {
-  pinMode(ACCELERATOR_PIN,INPUT); //external pullup
+  pinMode(THROTTLE_PIN,INPUT); //external pullup
   pinMode(ENGINE_START_BUTTON_PIN,INPUT); //external pulldown
-  pinMode(GEAR_SHIFT_UP_PIN, INPUT_PULLUP);
-  pinMode(GEAR_SHIFT_DOWN_PIN, INPUT_PULLUP);
+
+  pinMode(LED_BUILTIN, OUTPUT); //LED used for debug
+  digitalWrite(LED_BUILTIN, LOW);
 }
 
 void InitMotorPins()
 {
   pinMode(MOTOR_DRIVER_PWM_PIN,OUTPUT);
   digitalWrite(MOTOR_DRIVER_PWM_PIN,LOW);
-
-
   pinMode(MOTOR_DRIVER_DIR_PIN,OUTPUT);
   digitalWrite(MOTOR_DRIVER_DIR_PIN,LOW);
 }
@@ -150,7 +156,7 @@ void MotorStop()
 
 void MotorReverse()
 {
-//	analogWrite(LPWM,CurrMotorSpeed);
+//todo
 }
 
 void MotorNeutral()
@@ -165,61 +171,54 @@ void MotorEnable()
 }
 
 
-void InterruptAcceleratorReleased()
+void ThrottleReleasedISR()
 {
-	if(RampState != RAMP_DECELERATING ) //&& RampState !=RAMP_FINISHED)
+	if(RampState != RAMP_DECELERATING )//make sure we are not already decelarating
 	{
-		RampState = RAMP_STARTED_DECELERATING;
-		digitalWrite(LED_BUILTIN,HIGH);
+		RampState = RAMP_STARTED_DECELERATING;//ramp down the speed
 	}
 }
 
 void ProcessRamp()
 {
-	static unsigned long starttime;
-	unsigned long timedelta;
-	static long resolutioncounter = 0;
+	static unsigned long starttime; //when the ramp was started
+	unsigned long timedelta; //time difference from when the ramp was started 
+	static long resolutioncounter = 0; //resolution of ramp
 
 	switch(RampState)
 	{
 		case RAMP_DECELERATING:
 		{
 
+			//get the current delta from when the decelarion was started
 			timedelta = millis() - starttime;
-			CurrMotorSpeed = map(timedelta, 0, RAMP_DECELERATE_TIME, DecelerateStartSpeed, 0);
+
+			//motor speed is mapped against the decelation time- TODO make this is percentage
+			//of current speed
+			CurrMotorSpeed = map(timedelta, 0, RAMP_DECELERATE_TIME, RampStartSpeed, 0);
 
 			 
 			Serial.print("D Motor Speed ");
 			Serial.println(CurrMotorSpeed);
+			
+			//continue to move at the slower decelaration speed to avoif sudden jerky stop
 			MotorForward();
 						
-
+			//cehck if decelaration has finished
 			if(CurrMotorSpeed <= 0)
 			{
 
 				Serial.println("*DECELERATING Complete*");
 				RampState = RAMP_FINISHED_DECELERATING;
-				digitalWrite(LED_BUILTIN,LOW);
-
 			}
-
-
-
 		}break;
 		case RAMP_ACCELERATING:
 		{
-
-
-
+			//get time delta from current time to when the throttle was pressed
 			timedelta = millis() - starttime;
-			CurrMotorSpeed = map(timedelta, 0, RAMP_FORWARD_TIME_SECONDS*1000, DecelerateStartSpeed, RampEndSpeed);
+			CurrMotorSpeed = map(timedelta, 0, RAMP_FORWARD_TIME_SECONDS*1000, RampStartSpeed, RampEndSpeed);
 
-			 
-
-			Serial.print("A Motor Speed ");
-			Serial.println(CurrMotorSpeed);
 			MotorForward();
-
 
 			if(CurrMotorSpeed >= RampEndSpeed)
 			{
@@ -245,24 +244,19 @@ void ProcessRamp()
 			resolutioncounter = 0;
 			timedelta = 0;
 			 
-			DecelerateStartSpeed = CurrMotorSpeed;
+			RampStartSpeed = CurrMotorSpeed;
 			pMotorMove();
 
 
 		}break;
 		case RAMP_STARTED_DECELERATING:
 		{
-			Serial.println("D");
+			//setup decelarating values
 			RampState = RAMP_DECELERATING;
 			starttime = millis();
 			resolutioncounter = 0;
 			timedelta = 0;
-			DecelerateStartSpeed = CurrMotorSpeed;
-
-			//digitalWrite(LED_BUILTIN, HIGH);
-
-			//RampState = RAMP_FINISHED;
-
+			RampStartSpeed = CurrMotorSpeed;
 
 		}break;
 		case RAMP_STOPPED:
@@ -316,7 +310,7 @@ void ProcessScreenControlCommand(byte iCommand)
 void SetState(byte iNewState) //param data type should be KART_STATE but sloeber does not seem to handle enums as params
 {
 	PrevState = CurrState;
-	CurrState = iNewState;
+	CurrState = (KART_STATE)iNewState;
 }
 
 void ProcessState()
@@ -363,10 +357,10 @@ void ProcessState()
 
 void EngineStartButtonISR()
 {
-  //Serial.println("B");
+  //tmp using the engine button as gear switch until paddle shifts are completed
   static unsigned long last_interrupt_time = 0;
   unsigned long interrupt_time = millis();
-  // If interrupts come faster than 200ms, assume it's a bounce and ignore
+  // If interrupts come faster than ENGINE_START_BUTTON_DEBOUNCE, assume it's a bounce and ignore
   if (interrupt_time - last_interrupt_time > ENGINE_START_BUTTON_DEBOUNCE) 
   {
 	  //switch direction
@@ -385,9 +379,9 @@ void EngineStartButtonISR()
   last_interrupt_time = interrupt_time;
 }
 
-int CheckButton()
+int CheckThrottle()
 {
-	int value = digitalRead(ACCELERATOR_PIN) ;
+	int value = digitalRead(THROTTLE_PIN) ;
 	return value;
 }
 
@@ -397,34 +391,27 @@ void setup() {
 
   InitMotorPins();
   InitControlPins();
-
+  InitISR();
+   
   pMotorMove = MotorNeutral; //start off in neutral
 
-  attachInterrupt(digitalPinToInterrupt(ACCELERATOR_PIN), InterruptAcceleratorReleased, RISING);
-  attachInterrupt(digitalPinToInterrupt(ENGINE_START_BUTTON_PIN), EngineStartButtonISR, FALLING);
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, LOW);
+  
 
   //tmp for testing only- gear shifts disabled
   MotorEnable();
   pMotorMove = MotorForward;
 
-  RampState = RAMP_FINISHED_DECELERATING;
+  RampState = RAMP_FINISHED_DECELERATING;//start off in a stopped state
 }
 
 void loop()
 {
 
- 
-
- 
-
   //throttle pressed and we have stopped
-  if(CheckButton() == LOW && (RampState == RAMP_FINISHED_DECELERATING))
+  if(CheckThrottle() == LOW && (RampState == RAMP_FINISHED_DECELERATING))
   {
-	  //Serial.println("St A");
 	  RampState = RAMP_STARTED_ACCELERATING;
   }
-  ProcessRamp();
+  ProcessRamp(); //process movement
 
 }

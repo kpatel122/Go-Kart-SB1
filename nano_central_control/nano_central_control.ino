@@ -12,7 +12,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 const byte  RAMP_FORWARD_END_SPEED  = 255;
 const byte  RAMP_FORWARD_TIME_SECONDS = 4; // how long it takes to get to max speed
 
-#define  RAMP_DECELERATE_TIME 1000 //how quickly we should stop
+#define  RAMP_DECELERATE_TIME 1500 //how quickly we should stop- TODO needs to be a % of our speed
 
 
 const byte RAMP_FORWARD_START_SPEED = 128;
@@ -24,6 +24,7 @@ const byte RAMP_FORWARD_START_SPEED = 128;
 /* going from full speed to zero will cause a jerk for the user, so use a smooth stop*/
 #define  RAMP_DECELERATE_RESOLUTION 1000 //how often the ramp speed is updated in millis
 
+#define ENGINE_START_BUTTON_DEBOUNCE 1000
 
 byte DecelerateStartSpeed = 0;
 
@@ -90,6 +91,7 @@ String IncomingSerialString = "";
 
 /*input switches*/
 #define ACCELERATOR_PIN 2 //must be interrupt pin
+#define ENGINE_START_BUTTON_PIN 3
 
 
 #define GEAR_SHIFT_UP_PIN 3
@@ -110,9 +112,12 @@ enum GEAR
 	GEAR_SECOND = 3
 };
 
+GEAR currentGear = GEAR_FIRST;
+
 void InitControlPins()
 {
   pinMode(ACCELERATOR_PIN,INPUT); //external pullup
+  pinMode(ENGINE_START_BUTTON_PIN,INPUT); //external pulldown
   pinMode(GEAR_SHIFT_UP_PIN, INPUT_PULLUP);
   pinMode(GEAR_SHIFT_DOWN_PIN, INPUT_PULLUP);
 }
@@ -169,41 +174,6 @@ void InterruptAcceleratorReleased()
 	}
 }
 
-//not used
-void InterruptAcceleratorChange()
-{
-
-
-  static unsigned long last_interrupt_time = 0;
-  unsigned long interrupt_time = millis();
-
-  // If interrupts come faster than 200ms, assume it's a bounce and ignore
-  if (interrupt_time - last_interrupt_time > DebounceDelay)
-  {
-	  int value = digitalRead(ACCELERATOR_PIN) ;
-	  if(value== HIGH)
-	  {
-
-		  //MotorStop();
-		  //RampState = RAMP_STARTED_DECELERATING;
-		  //Serial.println("D");
-		 // RampState = RAMP_STARTED_DECELERATING;
-		 //RampState = RAMP_STARTED_DECELERATING;
-
-	  }
-	  else if(value == LOW)
-	  {
-
-
-		  //RampState = RAMP_STARTED_ACCELERATING;
-		  //Serial.println("A");
-	  }
-
-	  last_interrupt_time = interrupt_time;
-  }
-
-}
-
 void ProcessRamp()
 {
 	static unsigned long starttime;
@@ -218,9 +188,7 @@ void ProcessRamp()
 			timedelta = millis() - starttime;
 			CurrMotorSpeed = map(timedelta, 0, RAMP_DECELERATE_TIME, DecelerateStartSpeed, 0);
 
-			//Serial.print("Deceleration time ");
-			//Serial.println((int)timedelta);
-
+			 
 			Serial.print("D Motor Speed ");
 			Serial.println(CurrMotorSpeed);
 			MotorForward();
@@ -246,65 +214,18 @@ void ProcessRamp()
 			timedelta = millis() - starttime;
 			CurrMotorSpeed = map(timedelta, 0, RAMP_FORWARD_TIME_SECONDS*1000, DecelerateStartSpeed, RampEndSpeed);
 
-			//Serial.print("Deceleration time ");
-			//Serial.println((int)timedelta);
+			 
 
 			Serial.print("A Motor Speed ");
 			Serial.println(CurrMotorSpeed);
 			MotorForward();
 
 
-			/*
-			//if((int)(timedelta) >=1000)
-			if((int)(timedelta) >= RAMP_FORWARD_RESOLUTION)
-			{
-				resolutioncounter++;
-
-
-				//reset the time countr
-				starttime = millis();
-				timedelta = 0;
-
-				CurrMotorSpeed = map(resolutioncounter, 0, RampTimeSeconds, RampStartSpeed, RampEndSpeed);
-				//CurrMotorSpeed = map(timedelta, 0, (RampTimeSeconds), RampStartSpeed, RampEndSpeed);
-
-
-				Serial.print("resolution ");
-				Serial.println(resolutioncounter);
-
-				Serial.print("Motor Speed ");
-				Serial.println(CurrMotorSpeed);
-
-				MotorForward();
-
-
-			}
-
-			*/
-
-
-			//if(resolutioncounter >= (RampTimeSeconds*1000))
-			//{
-			//	Serial.println("***********Ramp Complete******** ");
-			//	RampState = RAMP_FINISHED;
-			//}
-
 			if(CurrMotorSpeed >= RampEndSpeed)
 			{
 				Serial.println("***********Ramp Complete******** ");
 				RampState = RAMP_FINISHED_ACCELERATING;
 			}
-
-
-
-			//byte RampStartSpeed = RAMP_FORWARD_START_SPEED;
-			//byte RampEndSpeed = RAMP_FORWARD_END_SPEED;
-			//byte RampSpeedDelta = RAMP_FORWARD_END_SPEED - RAMP_FORWARD_START_SPEED;
-			//byte RampTimeSeconds = RAMP_FORWARD_TIME_SECONDS;
-
-
-			//Serial.println("setting: RAMP_STOPPED ");
-			//RampState = RAMP_STOPPED;
 
 		}break;
 
@@ -323,7 +244,7 @@ void ProcessRamp()
 			starttime = millis();
 			resolutioncounter = 0;
 			timedelta = 0;
-			//CurrMotorSpeed = RampStartSpeed;
+			 
 			DecelerateStartSpeed = CurrMotorSpeed;
 			pMotorMove();
 
@@ -368,18 +289,26 @@ void ProcessScreenControlCommand(byte iCommand)
 	{
 		case GEAR_FIRST:
 		{
+			if(currentGear==GEAR_FIRST){break;}
+
 			MotorEnable();
 			pMotorMove = MotorForward;
+			currentGear = GEAR_FIRST;
+			digitalWrite(MOTOR_DRIVER_DIR_PIN,LOW);
 		}break;
 		case GEAR_REVERSE:
 		{
+			if(currentGear==GEAR_REVERSE){break;}
 			MotorEnable();
 			pMotorMove = MotorReverse;
+			currentGear = GEAR_REVERSE;
+			digitalWrite(MOTOR_DRIVER_DIR_PIN,HIGH);
 		}break;
 		case GEAR_NEUTRAL:
 		{
 			MotorNeutral();
 			pMotorMove = MotorNeutral;
+			currentGear = GEAR_NEUTRAL; 
 		}break;
 	}
 }
@@ -432,6 +361,30 @@ void ProcessState()
 
 }
 
+void EngineStartButtonISR()
+{
+  //Serial.println("B");
+  static unsigned long last_interrupt_time = 0;
+  unsigned long interrupt_time = millis();
+  // If interrupts come faster than 200ms, assume it's a bounce and ignore
+  if (interrupt_time - last_interrupt_time > ENGINE_START_BUTTON_DEBOUNCE) 
+  {
+	  //switch direction
+
+     if(currentGear == GEAR_FIRST)
+	 {
+		 Serial.println("r");
+		 ProcessScreenControlCommand(GEAR_REVERSE); 
+	 }
+	 else if (currentGear == GEAR_REVERSE)
+	 {
+		 Serial.println("f");
+		 ProcessScreenControlCommand(GEAR_FIRST);
+	 }
+  }
+  last_interrupt_time = interrupt_time;
+}
+
 int CheckButton()
 {
 	int value = digitalRead(ACCELERATOR_PIN) ;
@@ -448,6 +401,7 @@ void setup() {
   pMotorMove = MotorNeutral; //start off in neutral
 
   attachInterrupt(digitalPinToInterrupt(ACCELERATOR_PIN), InterruptAcceleratorReleased, RISING);
+  attachInterrupt(digitalPinToInterrupt(ENGINE_START_BUTTON_PIN), EngineStartButtonISR, FALLING);
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW);
 

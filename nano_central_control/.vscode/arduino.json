@@ -1,5 +1,7 @@
 {
-    "configuration": "cpu=atmega328",
+    "configuration": "cpu=atmega328old",
     "board": "arduino:avr:nano",
-    "sketch": "nano_central_control.ino"
+    "sketch": "nano_central_control.ino",
+    "port": "/dev/ttyUSB0",
+    "programmer": "arduino:avrispmkii"
 }

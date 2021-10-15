@@ -169,7 +169,7 @@ void InterruptAcceleratorReleased()
 	}
 }
 
-
+//not used
 void InterruptAcceleratorChange()
 {
 
@@ -224,7 +224,7 @@ void ProcessRamp()
 			Serial.print("D Motor Speed ");
 			Serial.println(CurrMotorSpeed);
 			MotorForward();
-
+						
 
 			if(CurrMotorSpeed <= 0)
 			{

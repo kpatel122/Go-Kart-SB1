@@ -9,41 +9,23 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 */
 
 /* soft start motor ramping */
-const byte  RAMP_FORWARD_END_SPEED  = 255;
+const byte  RAMP_FORWARD_END_SPEED  = 200;
 const byte  RAMP_FORWARD_TIME_SECONDS = 4; // how long it takes to get to max speed
-
-#define  RAMP_DECELERATE_TIME 1500 //how quickly we should stop- TODO needs to be a % of our speed
-
-
 const byte RAMP_FORWARD_START_SPEED = 128;
 
+const byte  RAMP_REVERSE_START_SPEED = 50;
+const byte  RAMP_REVERSE_END_SPEED = 100;
+const byte  RAMP_REVERSE_TIME_SECONDS = 2;
 
-
-#define  RAMP_FORWARD_RESOLUTION 1000 //how often the ramp speed is updated in millis
-
-/* going from full speed to zero will cause a jerk for the user, so use a smooth stop*/
-#define  RAMP_DECELERATE_RESOLUTION 1000 //how often the ramp speed is updated in millis
+ #define  RAMP_DECELERATE_TIME 1500 //how quickly we should stop- TODO needs to be a % of our speed
 
 #define ENGINE_START_BUTTON_DEBOUNCE 1000 //debounce speed between engine button presses
 
-//byte RampStartSpeed = 0; //the motor speed when we we start ramping (accelerate or decelerate)
-
-const byte  RAMP_REVERSE_START_SPEED = 128;
-const byte  RAMP_REVERSE_END_SPEED = 200;
-const byte  RAMP_REVERSE_TIME_SECONDS = 2;
+#define THROTTLE_PRESSED LOW //throttle switch is active low
 
 byte RampStartSpeed = RAMP_FORWARD_START_SPEED;
 byte RampEndSpeed = RAMP_FORWARD_END_SPEED;
-const byte RampSpeedDelta = RAMP_FORWARD_END_SPEED - RAMP_FORWARD_START_SPEED;
-const byte RampTimeSeconds = RAMP_FORWARD_TIME_SECONDS;
-
-const byte MINIMUM_STATIONARY_TIME_SECONDS = 2;
-
-unsigned long LastDebounceTime = 0;  // the last time the output pin was toggled
-unsigned long DebounceDelay = 200;
-int LastPedalState = HIGH;
-
-
+byte RampTimeSeconds = RAMP_FORWARD_TIME_SECONDS;
 
 enum RAMP_STATE
 {
@@ -80,22 +62,25 @@ KART_STATE PrevState = STATE_OFF;
 #define MOTOR_DRIVER_PWM_PIN 6
 #define MOTOR_DRIVER_DIR_PIN 4
 
-int ForwardMotorSpeed = 255;
-int ReverseMotorSpeed = 255;
+//Motor must be wired in the following way for these to be valid:
+//MOTOR->CRYTON DRIVER
+//MOTOR RED LEAD->MA
+//MOTOR BLACK LEAD->MB
+#define MOTOR_FORWARD HIGH
+#define MOTOR_BACKWARD LOW
+
+
+//stores the current speed of the motor
 int CurrMotorSpeed = 0;
 
-/*Serial*/
+//Serial
 #define BAUD 115200
 int IncomingSerialValue = 0;
 String IncomingSerialString = "";
 
-/*input switches*/
-#define THROTTLE_PIN 2 //must be interrupt pin
+//input switches must be interrupt pins
+#define THROTTLE_PIN 2 
 #define ENGINE_START_BUTTON_PIN 3
-
-
-#define GEAR_SHIFT_UP_PIN 3
-#define GEAR_SHIFT_DOWN_PIN 4
 
 /* move forwards or reverse function pointer */
 void (*pMotorMove)();
@@ -113,6 +98,24 @@ enum GEAR
 };
 
 GEAR currentGear = GEAR_FIRST;
+
+void SetRampProfile(KART_STATE direction)
+{
+	//set the forward or reverse ramp vaiables
+	if(direction == STATE_MOVING_FORWARD)
+	{
+		RampStartSpeed = RAMP_FORWARD_START_SPEED;
+		RampEndSpeed = RAMP_FORWARD_END_SPEED;
+		RampTimeSeconds = RAMP_FORWARD_TIME_SECONDS;
+	}
+	else if (direction == STATE_MOVING_REVERSE)
+	{
+		RampStartSpeed = RAMP_REVERSE_START_SPEED;
+		RampEndSpeed = RAMP_REVERSE_END_SPEED;
+		RampTimeSeconds = RAMP_REVERSE_TIME_SECONDS;
+	}
+
+}
 
 void InitISR()
 {
@@ -139,31 +142,9 @@ void InitMotorPins()
   digitalWrite(MOTOR_DRIVER_DIR_PIN,LOW);
 }
 
-void SetMotorSpeed(int iNewSpeed)
-{
-  ForwardMotorSpeed = iNewSpeed;
-}
-
 void MotorForward()
 {
 	analogWrite(MOTOR_DRIVER_PWM_PIN,CurrMotorSpeed);
-}
-
-void MotorStop()
-{
-  digitalWrite(MOTOR_DRIVER_PWM_PIN,0);
-
-}
-
-void MotorReverse()
-{
-//todo
-}
-
-void MotorNeutral()
-{
-//	  digitalWrite(L_EN,LOW); //free wheeling mode
-//	  digitalWrite(MOTOR_DRIVER_DIR_PIN,LOW);
 }
 
 void MotorEnable()
@@ -198,10 +179,6 @@ void ProcessRamp()
 			//of current speed
 			CurrMotorSpeed = map(timedelta, 0, RAMP_DECELERATE_TIME, RampStartSpeed, 0);
 
-			 
-			Serial.print("D Motor Speed ");
-			Serial.println(CurrMotorSpeed);
-			
 			//continue to move at the slower decelaration speed to avoif sudden jerky stop
 			MotorForward();
 						
@@ -215,9 +192,17 @@ void ProcessRamp()
 		}break;
 		case RAMP_ACCELERATING:
 		{
+			Serial.print("RampEndSpeed ");
+			Serial.print(RampEndSpeed);
+			Serial.print(" CurrMotorSpeed ");
+			Serial.println(CurrMotorSpeed);
+
+			//this could be going forward or backward, the speed profiles for either is set SetRampProfile
+			//called in the gear change
+			
 			//get time delta from current time to when the throttle was pressed
 			timedelta = millis() - starttime;
-			CurrMotorSpeed = map(timedelta, 0, RAMP_FORWARD_TIME_SECONDS*1000, RampStartSpeed, RampEndSpeed);
+			CurrMotorSpeed = map(timedelta, 0, RampTimeSeconds*1000, RampStartSpeed, RampEndSpeed);
 
 			MotorForward();
 
@@ -239,7 +224,7 @@ void ProcessRamp()
 		}break;
 		case RAMP_STARTED_ACCELERATING:
 		{
-			Serial.println("A");
+			 
 			RampState = RAMP_ACCELERATING;
 			starttime = millis();
 			resolutioncounter = 0;
@@ -262,9 +247,6 @@ void ProcessRamp()
 		}break;
 		case RAMP_STOPPED:
 		{
-			//Serial.println("S");
-			//Serial.flush();
-			//RampState = RAMP_FINISHED;
 
 		}break;
 		case RAMP_FINISHED_DECELERATING:
@@ -280,6 +262,7 @@ void ProcessRamp()
 
 void ProcessScreenControlCommand(byte iCommand)
 {
+	Serial.println("1");
 	switch(iCommand)
 	{
 		case GEAR_FIRST:
@@ -287,23 +270,26 @@ void ProcessScreenControlCommand(byte iCommand)
 			if(currentGear==GEAR_FIRST){break;}
 
 			MotorEnable();
-			pMotorMove = MotorForward;
+			 
 			currentGear = GEAR_FIRST;
-			digitalWrite(MOTOR_DRIVER_DIR_PIN,LOW);
+			digitalWrite(MOTOR_DRIVER_DIR_PIN,MOTOR_FORWARD); //set motor direction forward
+			SetRampProfile(STATE_MOVING_FORWARD);
 		}break;
 		case GEAR_REVERSE:
 		{
+			 
 			if(currentGear==GEAR_REVERSE){break;}
 			MotorEnable();
-			pMotorMove = MotorReverse;
+			 
+			 
 			currentGear = GEAR_REVERSE;
-			digitalWrite(MOTOR_DRIVER_DIR_PIN,HIGH);
+			 
+			digitalWrite(MOTOR_DRIVER_DIR_PIN,MOTOR_BACKWARD); //set motor direction backward
+			SetRampProfile(STATE_MOVING_REVERSE);
 		}break;
 		case GEAR_NEUTRAL:
 		{
-			MotorNeutral();
-			pMotorMove = MotorNeutral;
-			currentGear = GEAR_NEUTRAL; 
+			//todo
 		}break;
 	}
 }
@@ -356,6 +342,12 @@ void ProcessState()
 
 void EngineStartButtonISR()
 {
+
+	 
+	if(RampState != RAMP_FINISHED_DECELERATING) //only change if we have stopped, also prevents ghost button presses from motor inductance
+		return;
+
+	
   //tmp using the engine button as gear switch until paddle shifts are completed
   static unsigned long lastInterruptTime = 0;
   unsigned long interruptTime = millis();
@@ -366,12 +358,12 @@ void EngineStartButtonISR()
 
      if(currentGear == GEAR_FIRST)
 	 {
-		 
+		 Serial.println("R");
 		 ProcessScreenControlCommand(GEAR_REVERSE); 
 	 }
 	 else if (currentGear == GEAR_REVERSE)
 	 {
-		 
+		 Serial.println("F");
 		 ProcessScreenControlCommand(GEAR_FIRST);
 	 }
   }
@@ -390,15 +382,16 @@ void setup() {
   //initialise pins
   InitMotorPins();
   InitControlPins();
+  
+  //initialise interrupts
   InitISR();
    
-  pMotorMove = MotorNeutral; //start off in neutral
-
-  
+  //tmp disabled until paddle shift gears implemented 
+  //pMotorMove = MotorNeutral; //start off in neutral
 
   //tmp for testing only- gear shifts disabled
   MotorEnable();
-  pMotorMove = MotorForward;
+  pMotorMove = MotorForward;//todo no need for function pointer anymore- remove
 
   RampState = RAMP_FINISHED_DECELERATING;//start off in a stopped state
 }
@@ -407,7 +400,7 @@ void loop()
 {
 
   //throttle pressed and we have stopped
-  if(CheckThrottle() == LOW && (RampState == RAMP_FINISHED_DECELERATING))
+  if(CheckThrottle() == THROTTLE_PRESSED && (RampState == RAMP_FINISHED_DECELERATING))
   {
 	  RampState = RAMP_STARTED_ACCELERATING;
   }

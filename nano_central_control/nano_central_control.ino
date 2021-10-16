@@ -26,7 +26,7 @@ const byte RAMP_FORWARD_START_SPEED = 128;
 
 #define ENGINE_START_BUTTON_DEBOUNCE 1000 //debounce speed between engine button presses
 
-byte RampStartSpeed = 0; //the motor speed when we we start ramping (accelerate or decelerate)
+//byte RampStartSpeed = 0; //the motor speed when we we start ramping (accelerate or decelerate)
 
 const byte  RAMP_REVERSE_START_SPEED = 128;
 const byte  RAMP_REVERSE_END_SPEED = 200;
@@ -58,7 +58,7 @@ enum RAMP_STATE
 	RAMP_FINISHED_DECELERATING
 };
 
-volatile RAMP_STATE RampState = RAMP_FINISHED_DECELERATING;
+volatile RAMP_STATE RampState = RAMP_FINISHED_DECELERATING; //gets changed in ISR
 
 
 /* kart state machine */
@@ -132,6 +132,7 @@ void InitControlPins()
 
 void InitMotorPins()
 {
+   //cryton module
   pinMode(MOTOR_DRIVER_PWM_PIN,OUTPUT);
   digitalWrite(MOTOR_DRIVER_PWM_PIN,LOW);
   pinMode(MOTOR_DRIVER_DIR_PIN,OUTPUT);
@@ -307,10 +308,10 @@ void ProcessScreenControlCommand(byte iCommand)
 	}
 }
 
-void SetState(byte iNewState) //param data type should be KART_STATE but sloeber does not seem to handle enums as params
+void SetState(KART_STATE iNewState)  
 {
 	PrevState = CurrState;
-	CurrState = (KART_STATE)iNewState;
+	CurrState = iNewState;
 }
 
 void ProcessState()
@@ -350,45 +351,43 @@ void ProcessState()
 		{
 
 		}break;
-
 	}
-
 }
 
 void EngineStartButtonISR()
 {
   //tmp using the engine button as gear switch until paddle shifts are completed
-  static unsigned long last_interrupt_time = 0;
-  unsigned long interrupt_time = millis();
+  static unsigned long lastInterruptTime = 0;
+  unsigned long interruptTime = millis();
   // If interrupts come faster than ENGINE_START_BUTTON_DEBOUNCE, assume it's a bounce and ignore
-  if (interrupt_time - last_interrupt_time > ENGINE_START_BUTTON_DEBOUNCE) 
+  if (interruptTime - lastInterruptTime > ENGINE_START_BUTTON_DEBOUNCE) 
   {
 	  //switch direction
 
      if(currentGear == GEAR_FIRST)
 	 {
-		 Serial.println("r");
+		 
 		 ProcessScreenControlCommand(GEAR_REVERSE); 
 	 }
 	 else if (currentGear == GEAR_REVERSE)
 	 {
-		 Serial.println("f");
+		 
 		 ProcessScreenControlCommand(GEAR_FIRST);
 	 }
   }
-  last_interrupt_time = interrupt_time;
+  lastInterruptTime = interruptTime;
 }
 
-int CheckThrottle()
+inline int CheckThrottle()
 {
-	int value = digitalRead(THROTTLE_PIN) ;
-	return value;
+	return digitalRead(THROTTLE_PIN) ;
 }
 
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(BAUD);
 
+  //initialise pins
   InitMotorPins();
   InitControlPins();
   InitISR();

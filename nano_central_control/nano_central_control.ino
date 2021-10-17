@@ -8,6 +8,10 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#include "SoftwareSerial.h"
+#include "DFRobotDFPlayerMini.h"
+
+
 /* soft start motor ramping */
 const byte  RAMP_FORWARD_END_SPEED  = 200;
 const byte  RAMP_FORWARD_TIME_SECONDS = 4; // how long it takes to get to max speed
@@ -88,6 +92,13 @@ void (*pMotorMove)();
 /*data from the screen controller*/
 byte incomingByte;
 
+//sound system
+SoftwareSerial MP3SoftwareSerial(5, 7); // RX, TX
+DFRobotDFPlayerMini DFPlayer;
+ 
+#define DFPLAYER_BAUD 9600
+bool IsEngineSamplePlaying = false;
+
 /*GEAR states*/
 enum GEAR
 {
@@ -98,6 +109,11 @@ enum GEAR
 };
 
 GEAR currentGear = GEAR_FIRST;
+
+//sound system
+SoftwareSerial MP3SoftwareSerial(5, 7); // RX, TX
+DFRobotDFPlayerMini DFPlayer;
+void printDetail(uint8_t type, int value);
 
 void SetRampProfile(KART_STATE direction)
 {
@@ -343,6 +359,9 @@ void ProcessState()
 void EngineStartButtonISR()
 {
 
+	DFPlayer.play(1);
+    IsEngineSamplePlaying= true;
+
 	 
 	if(RampState != RAMP_FINISHED_DECELERATING) //only change if we have stopped, also prevents ghost button presses from motor inductance
 		return;
@@ -375,9 +394,28 @@ inline int CheckThrottle()
 	return digitalRead(THROTTLE_PIN) ;
 }
 
+void InitSoundPlayer()
+{
+	if (!DFPlayer.begin(MP3SoftwareSerial)) {  //Use softwareSerial to communicate with mp3.
+    Serial.println(F("Unable to begin:"));
+    Serial.println(F("1.Please recheck the connection!"));
+    Serial.println(F("2.Please insert the SD card!"));
+    while(true){
+      delay(0); // Code to compatible with ESP8266 watch dog.
+    }
+  }
+  Serial.println(F("DFPlayer Mini online."));
+  
+  DFPlayer.volume(20);  //Set volume value. From 0 to 30
+}
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(BAUD);
+  MP3SoftwareSerial.begin(DFPLAYER_BAUD);
+
+  
+  
 
   //initialise pins
   InitMotorPins();
@@ -385,6 +423,9 @@ void setup() {
   
   //initialise interrupts
   InitISR();
+
+  	
+  InitSoundPlayer();
    
   //tmp disabled until paddle shift gears implemented 
   //pMotorMove = MotorNeutral; //start off in neutral

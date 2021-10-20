@@ -19,8 +19,8 @@ MCUFRIEND_kbv tft;
 //STM32 pin |PA7|PA6|PA5|PA4|PA3|PA2|PA1|PA0| |PB0    |PB6    |PB7    |PB8    |PB9    | |PA15 |PB5  |PB4  |PB3   | **ALT-SPI1**
 //Inputs Gear up | Gear Down
 //       PB12    | PB13
-//Serial TX   | RX
-//       PB10 | PB11
+//Serial3 TX   | RX
+//        PB10 | PB11
 
 /*Gear shifters*/
 #define GEAR_SHIFT_UP_PIN PB12

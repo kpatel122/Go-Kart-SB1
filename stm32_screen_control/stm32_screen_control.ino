@@ -78,13 +78,13 @@ bool CheckForGearShift()
   if(digitalRead(GEAR_SHIFT_UP_PIN) == LOW)
   {
     NextGearShift = GEAR_SHIFT_UP;
-    digitalWrite(LED_BUILTIN, LOW);
+    //digitalWrite(LED_BUILTIN, HIGH);
     return true;
   }
   else if(digitalRead(GEAR_SHIFT_DOWN_PIN) == LOW)
   {
     NextGearShift = GEAR_SHIFT_DOWN;
-    digitalWrite(LED_BUILTIN, HIGH);
+    //digitalWrite(LED_BUILTIN, HIGH);
     return true;
   }
 
@@ -148,6 +148,8 @@ void setup(void)
     tft.setRotation(1);
 
     pinMode(LED_BUILTIN, OUTPUT);
+    
+    digitalWrite(LED_BUILTIN,LOW);
 
     tft.fillScreen(TFT_BLACK);
 
@@ -158,10 +160,12 @@ String IncomingSerialString = "";
 byte IncomingByte;
 void loop(void)
 {
-	if(CheckForGearShift() == true)
+
+  if(CheckForGearShift() == true)
 	{
 		ProcessGearShift();
 	}
+  
 }
 
 

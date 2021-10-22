@@ -92,13 +92,6 @@ void (*pMotorMove)();
 /*data from the screen controller*/
 byte incomingByte;
 
-//sound system
-SoftwareSerial MP3SoftwareSerial(5, 7); // RX, TX
-DFRobotDFPlayerMini DFPlayer;
- 
-#define DFPLAYER_BAUD 9600
-bool IsEngineSamplePlaying = false;
-
 /*GEAR states*/
 enum GEAR
 {
@@ -111,9 +104,10 @@ enum GEAR
 GEAR currentGear = GEAR_FIRST;
 
 //sound system
-SoftwareSerial MP3SoftwareSerial(5, 7); // RX, TX
+SoftwareSerial MP3SoftwareSerial(7, 5); // RX, TX
 DFRobotDFPlayerMini DFPlayer;
-void printDetail(uint8_t type, int value);
+#define DFPLAYER_BAUD 9600
+bool IsEngineSamplePlaying = false;
 
 void SetRampProfile(KART_STATE direction)
 {
@@ -396,23 +390,23 @@ inline int CheckThrottle()
 
 void InitSoundPlayer()
 {
+	MP3SoftwareSerial.begin(DFPLAYER_BAUD);
 	if (!DFPlayer.begin(MP3SoftwareSerial)) {  //Use softwareSerial to communicate with mp3.
     Serial.println(F("Unable to begin:"));
     Serial.println(F("1.Please recheck the connection!"));
     Serial.println(F("2.Please insert the SD card!"));
-    while(true){
-      delay(0); // Code to compatible with ESP8266 watch dog.
-    }
+     
   }
-  Serial.println(F("DFPlayer Mini online."));
+  //Serial.println(F("DFPlayer Mini online."));
   
-  DFPlayer.volume(20);  //Set volume value. From 0 to 30
+    
+  
 }
 
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(BAUD);
-  MP3SoftwareSerial.begin(DFPLAYER_BAUD);
+  //Serial.print("HELLO WORLD");
 
   
   
@@ -437,6 +431,18 @@ void setup() {
   RampState = RAMP_FINISHED_DECELERATING;//start off in a stopped state
 }
 
+void blink(int num, int ms)
+{
+	for(int i=0;i<num;i++)
+	{
+		digitalWrite(LED_BUILTIN, HIGH);
+		delay(ms);
+		digitalWrite(LED_BUILTIN, LOW);
+		delay(ms);
+	}
+	
+}
+
 void loop()
 {
 
@@ -446,5 +452,24 @@ void loop()
 	  RampState = RAMP_STARTED_ACCELERATING;
   }
   ProcessRamp(); //process movement
+
+   if (Serial.available() > 0) {
+    // read the incoming byte:
+    
+	
+	incomingByte = Serial.read();
+
+
+	if(incomingByte == 0) {blink(1,500);}
+	else if(incomingByte == 1) {blink(2,700);}
+	else if(incomingByte == 2) {blink(3,700);}
+	 
+
+    // say what you got:
+    //Serial.print("I received: ");
+    //Serial.println(incomingByte, DEC);
+  }
+
+  
 
 }

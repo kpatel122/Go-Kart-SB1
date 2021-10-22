@@ -353,8 +353,15 @@ void ProcessState()
 void EngineStartButtonISR()
 {
 
-	DFPlayer.play(1);
-    IsEngineSamplePlaying= true;
+	if(CurrState == STATE_OFF)
+	{
+		DFPlayer.play(1);//play engine start sound FX
+		CurrState = STATE_READY;
+		IsEngineSamplePlaying= true;
+		return;
+	}
+	
+    
 
 	 
 	if(RampState != RAMP_FINISHED_DECELERATING) //only change if we have stopped, also prevents ghost button presses from motor inductance

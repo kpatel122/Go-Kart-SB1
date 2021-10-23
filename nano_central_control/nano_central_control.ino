@@ -12,20 +12,20 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "DFRobotDFPlayerMini.h"
 
 
-/* soft start motor ramping */
-const byte  RAMP_FORWARD_END_SPEED  = 200;
-const byte  RAMP_FORWARD_TIME_SECONDS = 4; // how long it takes to get to max speed
-const byte RAMP_FORWARD_START_SPEED = 128;
+/* min speed parameters- soft start motor ramping */
+const byte  RAMP_FORWARD_END_SPEED  = 150; //max 255
 
-const byte  RAMP_REVERSE_START_SPEED = 50;
-const byte  RAMP_REVERSE_END_SPEED = 100;
+const byte RAMP_FORWARD_START_SPEED = 120;
+const byte  RAMP_FORWARD_TIME_SECONDS = 2; // how long it takes to get to max speed
+
+const byte  RAMP_REVERSE_END_SPEED = 150;
+
+
+const byte  RAMP_REVERSE_START_SPEED = 120;
 const byte  RAMP_REVERSE_TIME_SECONDS = 2;
 
- #define  RAMP_DECELERATE_TIME 1500 //how quickly we should stop- TODO needs to be a % of our speed
-
-#define ENGINE_START_BUTTON_DEBOUNCE 1000 //debounce speed between engine button presses
-
-#define THROTTLE_PRESSED LOW //throttle switch is active low
+//stop instantly would cause a jerk- smooth stop instead
+ #define  RAMP_DECELERATE_TIME 1000 //how quickly we should stop- TODO needs to be a % of our speed
 
 byte RampStartSpeed = RAMP_FORWARD_START_SPEED;
 byte RampEndSpeed = RAMP_FORWARD_END_SPEED;
@@ -59,7 +59,7 @@ enum KART_STATE
   STATE_NOT_MOVING
 };
 
-KART_STATE CurrState = STATE_OFF;
+volatile KART_STATE CurrState = STATE_OFF;
 KART_STATE PrevState = STATE_OFF;
 
 /* Cytron MD20A module*/
@@ -82,9 +82,15 @@ int CurrMotorSpeed = 0;
 int IncomingSerialValue = 0;
 String IncomingSerialString = "";
 
-//input switches must be interrupt pins
+//throttle input switche must be interrupt pin
+#define THROTTLE_PRESSED LOW //throttle switch is active low
 #define THROTTLE_PIN 2 
+
+//engine button
 #define ENGINE_START_BUTTON_PIN 3
+#define ENGINE_START_BUTTON_DEBOUNCE 1000 //debounce speed between engine button presses
+#define ENGINE_START_PRESSED HIGH //engine start button active high
+
 
 /* move forwards or reverse function pointer */
 void (*pMotorMove)();
@@ -131,7 +137,7 @@ void InitISR()
 {
 	//initialise interrupts
 	attachInterrupt(digitalPinToInterrupt(THROTTLE_PIN), ThrottleReleasedISR, RISING);
-    attachInterrupt(digitalPinToInterrupt(ENGINE_START_BUTTON_PIN), EngineStartButtonISR, FALLING); 
+//    attachInterrupt(digitalPinToInterrupt(ENGINE_START_BUTTON_PIN), EngineStartButtonISR, FALLING); 
 }
 
 void InitControlPins()
@@ -195,18 +201,17 @@ void ProcessRamp()
 			//cehck if decelaration has finished
 			if(CurrMotorSpeed <= 0)
 			{
-
-				Serial.println("*DECELERATING Complete*");
 				RampState = RAMP_FINISHED_DECELERATING;
 			}
 		}break;
 		case RAMP_ACCELERATING:
 		{
+			/*
 			Serial.print("RampEndSpeed ");
 			Serial.print(RampEndSpeed);
 			Serial.print(" CurrMotorSpeed ");
 			Serial.println(CurrMotorSpeed);
-
+*/
 			//this could be going forward or backward, the speed profiles for either is set SetRampProfile
 			//called in the gear change
 			
@@ -218,7 +223,7 @@ void ProcessRamp()
 
 			if(CurrMotorSpeed >= RampEndSpeed)
 			{
-				Serial.println("***********Ramp Complete******** ");
+				//Serial.println("***********Ramp Complete******** ");
 				RampState = RAMP_FINISHED_ACCELERATING;
 			}
 
@@ -272,14 +277,14 @@ void ProcessRamp()
 
 void ProcessScreenControlCommand(byte iCommand)
 {
-	Serial.println("1");
+ 
 	switch(iCommand)
 	{
 		case GEAR_FIRST:
 		{
 			if(currentGear==GEAR_FIRST){break;}
 
-			MotorEnable();
+			//MotorEnable();
 			 
 			currentGear = GEAR_FIRST;
 			digitalWrite(MOTOR_DRIVER_DIR_PIN,MOTOR_FORWARD); //set motor direction forward
@@ -289,7 +294,7 @@ void ProcessScreenControlCommand(byte iCommand)
 		{
 			 
 			if(currentGear==GEAR_REVERSE){break;}
-			MotorEnable();
+			//MotorEnable();
 			 
 			 
 			currentGear = GEAR_REVERSE;
@@ -353,41 +358,42 @@ void ProcessState()
 void EngineStartButtonISR()
 {
 
-	if(CurrState == STATE_OFF)
-	{
-		DFPlayer.play(1);//play engine start sound FX
-		CurrState = STATE_READY;
-		IsEngineSamplePlaying= true;
-		return;
-	}
-	
-    
-
-	 
 	if(RampState != RAMP_FINISHED_DECELERATING) //only change if we have stopped, also prevents ghost button presses from motor inductance
 		return;
 
 	
   //tmp using the engine button as gear switch until paddle shifts are completed
-  static unsigned long lastInterruptTime = 0;
+  volatile static unsigned long lastInterruptTime = 0;
   unsigned long interruptTime = millis();
   // If interrupts come faster than ENGINE_START_BUTTON_DEBOUNCE, assume it's a bounce and ignore
   if (interruptTime - lastInterruptTime > ENGINE_START_BUTTON_DEBOUNCE) 
   {
-	  //switch direction
 
-     if(currentGear == GEAR_FIRST)
-	 {
-		 Serial.println("R");
-		 ProcessScreenControlCommand(GEAR_REVERSE); 
-	 }
-	 else if (currentGear == GEAR_REVERSE)
-	 {
-		 Serial.println("F");
-		 ProcessScreenControlCommand(GEAR_FIRST);
-	 }
+	   if(CurrState == STATE_OFF)
+	   {
+		   WaitForEngineStartButton();//dont do anything unless engine start button has been pressed
+	   }
+	   else
+	   {
+
+			//switch direction
+			if(currentGear == GEAR_FIRST)
+			{
+				ProcessScreenControlCommand(GEAR_REVERSE); 
+			}
+			else if (currentGear == GEAR_REVERSE)
+			{
+				ProcessScreenControlCommand(GEAR_FIRST);
+			}
+	   }
   }
   lastInterruptTime = interruptTime;
+
+}
+
+inline int CheckEngineStartButton()
+{
+	return digitalRead(ENGINE_START_BUTTON_PIN) ;
 }
 
 inline int CheckThrottle()
@@ -410,34 +416,42 @@ void InitSoundPlayer()
   
 }
 
+void WaitForEngineStartButton()
+{
+	//infinite loop until engine start button pressed
+	while(CheckEngineStartButton() != ENGINE_START_PRESSED){}
+
+	//play engine start sound
+	DFPlayer.play(2);//play engine start sound FX
+	CurrState = STATE_READY;
+}
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(BAUD);
-  //Serial.print("HELLO WORLD");
-
-  
-  
 
   //initialise pins
   InitMotorPins();
   InitControlPins();
   
   //initialise interrupts
-  InitISR();
-
-  	
+  InitISR();  	
   InitSoundPlayer();
    
   //tmp disabled until paddle shift gears implemented 
   //pMotorMove = MotorNeutral; //start off in neutral
 
   //tmp for testing only- gear shifts disabled
-  MotorEnable();
+  
   pMotorMove = MotorForward;//todo no need for function pointer anymore- remove
 
   RampState = RAMP_FINISHED_DECELERATING;//start off in a stopped state
+
+ 
+  MotorEnable();//good to go
 }
 
+//debug LED blink
 void blink(int num, int ms)
 {
 	for(int i=0;i<num;i++)
@@ -454,23 +468,30 @@ void loop()
 {
 
   //throttle pressed and we have stopped
-  if(CheckThrottle() == THROTTLE_PRESSED && (RampState == RAMP_FINISHED_DECELERATING))
+  if(CheckThrottle() == THROTTLE_PRESSED && (RampState == RAMP_FINISHED_DECELERATING) && (CurrState!= STATE_OFF))
   {
 	  RampState = RAMP_STARTED_ACCELERATING;
   }
   ProcessRamp(); //process movement
 
+  //tmp use the engine button to switch gears
+  if(CheckEngineStartButton() == ENGINE_START_PRESSED) 
+  {
+	  EngineStartButtonISR();
+  }
+
+   //read from stm32 screen control
    if (Serial.available() > 0) {
     // read the incoming byte:
     
-	
+/*	
 	incomingByte = Serial.read();
 
 
 	if(incomingByte == 0) {blink(1,500);}
 	else if(incomingByte == 1) {blink(2,700);}
 	else if(incomingByte == 2) {blink(3,700);}
-	 
+*/	 
 
     // say what you got:
     //Serial.print("I received: ");

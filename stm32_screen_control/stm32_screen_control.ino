@@ -20,7 +20,12 @@ MCUFRIEND_kbv tft;
 //Inputs Gear up | Gear Down
 //       PB12    | PB13
 //Serial3 TX   | RX
-//        PB10 | PB11
+//        PB10 | PB11 //speaker
+//Throttle PWM  PA8
+//Engine Button PB14
+//IN1  PB1
+//IN2  PC14
+//IN3  PC15
 
 /*Gear shifters*/
 #define GEAR_SHIFT_UP_PIN PB12

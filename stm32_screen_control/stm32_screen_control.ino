@@ -2,7 +2,7 @@
 
 
 
-
+#include "DFRobotDFPlayerMini.h"
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <MCUFRIEND_kbv.h>   // Hardware-specific library
 MCUFRIEND_kbv tft;
@@ -21,8 +21,10 @@ MCUFRIEND_kbv tft;
 //       PB12    | PB13
 //Serial3 TX   | RX
 //        PB10 | PB11 //speaker
-//Throttle PWM  PA8
-//Engine Button PB14
+//Motor PWM PA8
+//Motor Dir PB15
+//Throttle  PB14
+//Engine Button PA9
 //IN1  PB1
 //IN2  PC14
 //IN3  PC15
@@ -53,6 +55,46 @@ GEAR NewGear = GEAR_NEUTRAL;
 
 /*Serial*/
 #define BAUD 115200
+
+/*Sound player*/
+DFRobotDFPlayerMini DFPlayer;
+#define DFPLAYER_BAUD 9600
+bool IsEngineSamplePlaying = false;
+
+
+//debug LED blink
+void blink(int num, int ms)
+{
+	for(int i=0;i<num;i++)
+	{
+		digitalWrite(LED_BUILTIN, LOW);
+		delay(ms);
+		digitalWrite(LED_BUILTIN, HIGH);
+		delay(ms);
+	}
+	
+}
+
+void InitSoundPlayer()
+{
+	Serial3.begin(DFPLAYER_BAUD); 
+	if (!DFPlayer.begin(Serial3)) {  //Use softwareSerial to communicate with mp3.
+    Serial.println(F("Unable to begin:"));
+    Serial.println(F("1.Please recheck the connection!"));
+    Serial.println(F("2.Please insert the SD card!"));
+    blink(10,500);
+  }
+  else
+  {
+    blink(5,1000);
+    Serial.println(F("DFPlayer Mini online."));
+     
+  }
+   
+  
+    
+  
+}
 
 
 void InitControlPins()
@@ -104,7 +146,7 @@ void ProcessGearShift()
     if(CurrentGear == GEAR_NEUTRAL)
     {
       CurrentGear = GEAR_FIRST;
-      Serial3.write(CurrentGear);
+      //Serial3.write(CurrentGear);
       showmsgXY(210, 200, 4, &FreeSansBold24pt7b, "F",TFT_GREEN);
 
       return;
@@ -112,7 +154,7 @@ void ProcessGearShift()
     if(CurrentGear == GEAR_REVERSE)
     {
       CurrentGear = GEAR_NEUTRAL;
-      Serial3.write(CurrentGear);
+      //Serial3.write(CurrentGear);
       showmsgXY(210, 200, 4, &FreeSansBold24pt7b, "N",TFT_WHITE);
       return;
     }
@@ -122,14 +164,14 @@ void ProcessGearShift()
     if(CurrentGear == GEAR_NEUTRAL)
     {
       CurrentGear = GEAR_REVERSE;
-      Serial3.write(CurrentGear);
+      //Serial3.write(CurrentGear);
       showmsgXY(210, 200, 4, &FreeSansBold24pt7b, "R",TFT_RED);
       return;
     }
     if(CurrentGear == GEAR_FIRST)
     {
       CurrentGear = GEAR_NEUTRAL;
-      Serial3.write(CurrentGear);
+      //Serial3.write(CurrentGear);
       showmsgXY(210, 200, 4, &FreeSansBold24pt7b, "N",TFT_WHITE);
       return;
     }
@@ -140,7 +182,7 @@ void setup(void)
 {
     Serial.begin(BAUD);
 
-    Serial3.begin(BAUD);
+    
 
     InitControlPins();
 
@@ -154,7 +196,9 @@ void setup(void)
 
     pinMode(LED_BUILTIN, OUTPUT);
     
-    digitalWrite(LED_BUILTIN,LOW);
+    digitalWrite(LED_BUILTIN,HIGH); //active low
+
+    InitSoundPlayer();
 
     tft.fillScreen(TFT_BLACK);
 

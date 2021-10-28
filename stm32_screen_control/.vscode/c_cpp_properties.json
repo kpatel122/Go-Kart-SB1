@@ -17,6 +17,7 @@
                 "/home/kp/.arduino15/packages/stm32duino/hardware/STM32F1/2021.5.21/system/libmaple/usb/usb_lib",
                 "/home/kp/.arduino15/packages/stm32duino/hardware/STM32F1/2021.5.21/cores/maple",
                 "/home/kp/.arduino15/packages/stm32duino/hardware/STM32F1/2021.5.21/variants/generic_stm32f103c",
+                "/home/kp/Arduino/libraries/DFRobotDFPlayer",
                 "/home/kp/Arduino/libraries/Adafruit-GFX",
                 "/home/kp/Arduino/libraries/MCUFRIEND_kbv",
                 "/home/kp/.arduino15/packages/stm32duino/hardware/STM32F1/2021.5.21/libraries/SPI/src",

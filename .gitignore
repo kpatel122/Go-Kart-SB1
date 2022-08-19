@@ -12,3 +12,8 @@ nano_central_control/.vscode/c_cpp_properties.json
 nano_central_control/workspace.code-workspace
 stm32_screen_control/.vscode/arduino.json
 stm32_screen_control/.vscode/c_cpp_properties.json
+stm32_control/.vscode/arduino.json
+stm32_control/.vscode/arduino.json
+stm32_control/.vscode/arduino.json
+stm32_control/.vscode/c_cpp_properties.json
+*.json

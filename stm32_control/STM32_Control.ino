@@ -134,6 +134,7 @@ int CurrMotorSpeed = 0;
 #define MOTOR_BACKWARD LOW
 
 
+
 //debug LED blink
 void blink(int num, int ms)
 {
@@ -154,12 +155,14 @@ void InitSoundPlayer()
     Serial.println(F("Unable to begin:"));
     Serial.println(F("1.Please recheck the connection!"));
     Serial.println(F("2.Please insert the SD card!"));
+    ScreenLog("Sound Not OK");
     //blink(10,500);
   }
   else
   {
     //blink(5,1000);
     Serial.println(F("DFPlayer Mini online."));
+    ScreenLog("Sound OK!");
      
   }  
 }
@@ -171,19 +174,53 @@ void InitGearShiftPins()
   pinMode(GEAR_SHIFT_DOWN_PIN, INPUT_PULLUP);
 }
 
+void ScreenLog(const char *msg)
+{
+   static int logX = 10;
+   static int logY = 20;
+   static int sz = 1;
+ 
+
+    tft.setFont(&FreeSans9pt7b);
+    tft.setCursor(logX, logY);
+    tft.setTextColor(TFT_RED);
+    tft.setTextSize(sz);
+    tft.print(msg);
+
+    logY += 20;
+
+    
+}
+
+void UpdateScreenGear(const char *msg, int colour)
+{
+
+  static int gearPosX = 210;
+   static int gearPosY = 200;
+
+  //clear the old gear text
+  tft.fillRect(gearPosX+10, 60, 125, 150, TFT_BLACK);
+     
+    tft.setFont(&FreeSansBold24pt7b);
+    tft.setCursor(gearPosX, gearPosY);
+    tft.setTextColor(colour);
+    tft.setTextSize(4);
+    tft.print(msg);
+}
 
 void showmsgXY(int x, int y, int sz, const GFXfont *f, const char *msg, int colour)
 {
 	tft.fillScreen(TFT_BLACK);
-    int16_t x1, y1;
-    uint16_t wid, ht;
+
+      
 
     tft.setFont(f);
     tft.setCursor(x, y);
     tft.setTextColor(colour);
     tft.setTextSize(sz);
     tft.print(msg);
-    delay(1000);
+    
+    //delay(1000);
 }
 
 bool CheckForGearShift()
@@ -215,7 +252,8 @@ void ProcessGearShift()
     {
       CurrentGear = GEAR_FIRST;
       //Serial3.write(CurrentGear);
-      showmsgXY(210, 200, 4, &FreeSansBold24pt7b, "F",TFT_GREEN);
+      //showmsgXY(210, 200, 4, &FreeSansBold24pt7b, "F",TFT_GREEN);
+      UpdateScreenGear("F",TFT_GREEN);
 
       return;
     }
@@ -223,7 +261,8 @@ void ProcessGearShift()
     {
       CurrentGear = GEAR_NEUTRAL;
       //Serial3.write(CurrentGear);
-      showmsgXY(210, 200, 4, &FreeSansBold24pt7b, "N",TFT_WHITE);
+      //showmsgXY(210, 200, 4, &FreeSansBold24pt7b, "N",TFT_WHITE);
+      UpdateScreenGear("N",TFT_WHITE);
       return;
     }
   }
@@ -233,14 +272,16 @@ void ProcessGearShift()
     {
       CurrentGear = GEAR_REVERSE;
       //Serial3.write(CurrentGear);
-      showmsgXY(210, 200, 4, &FreeSansBold24pt7b, "R",TFT_RED);
+      //showmsgXY(210, 200, 4, &FreeSansBold24pt7b, "R",TFT_RED);
+      UpdateScreenGear("R",TFT_RED);
       return;
     }
     if(CurrentGear == GEAR_FIRST)
     {
       CurrentGear = GEAR_NEUTRAL;
       //Serial3.write(CurrentGear);
-      showmsgXY(210, 200, 4, &FreeSansBold24pt7b, "N",TFT_WHITE);
+      //showmsgXY(210, 200, 4, &FreeSansBold24pt7b, "N",TFT_WHITE);
+      UpdateScreenGear("N",TFT_WHITE);
       return;
     }
   }
@@ -255,14 +296,10 @@ void InitScreen()
     if (ID == 0xD3D3) ID = 0x9481; //force ID if write-only display
     tft.begin(ID);
     tft.setRotation(1);
+    tft.fillScreen(TFT_BLACK);
 }
 
-void StartScreen()
-{
-  tft.fillScreen(TFT_BLACK);
-  //showmsgXY(210, 200, 4, &FreeSansBold24pt7b, "N",TFT_WHITE);
-  showmsgXY(210, 200, 4, &FreeSansBold24pt7b, "L",TFT_BLACK);
-}
+ 
 
 void InitMotorPins()
 {
@@ -279,6 +316,7 @@ void ThrottleReleasedISR()
 	{
 		RampState = RAMP_STARTED_DECELERATING;//ramp down the speed
 	}
+  //ScreenLog("Stop");
 }
 
 void MotorForward()
@@ -411,11 +449,16 @@ void setup(void)
     digitalWrite(LED_BUILTIN,HIGH); //active low
 
     InitSoundPlayer();
+
+
     InitMotorPins();
     InitISR();
 
-    blink(3,100);
+    UpdateScreenGear("N",TFT_WHITE);
+     
+    
 }
+
 inline int CheckThrottle()
 {
 	return digitalRead(THROTTLE_PIN) ;
@@ -435,12 +478,14 @@ void loop(void)
   if(CheckThrottle() == THROTTLE_PRESSED && (RampState == RAMP_FINISHED_DECELERATING)) //&& (CurrState!= STATE_OFF))
   {
 	  RampState = RAMP_STARTED_ACCELERATING;
-
-    showmsgXY(100, 100, 4, &FreeSansBold24pt7b, "ST",TFT_RED);
+    //ScreenLog("Vroom");
+     
   }
 
   ProcessRamp(); //process movement
   
 }
+
+
 
 

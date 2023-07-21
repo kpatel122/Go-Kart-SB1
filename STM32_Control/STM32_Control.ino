@@ -38,6 +38,7 @@ MCUFRIEND_kbv tft;
 
 #define THROTTLE_PIN PB14
 #define THROTTLE_PRESSED LOW //throttle switch is active low
+#define THROTTLE_NOT_PRESSED HIGH //throttle switch is active low
 
 #define MOTOR_DRIVER_DIR_PIN PB15
 #define MOTOR_DRIVER_PWM_PIN PA8
@@ -133,6 +134,9 @@ int CurrMotorSpeed = 0;
 #define MOTOR_FORWARD HIGH
 #define MOTOR_BACKWARD LOW
 
+
+#define LED_ON LOW
+#define LED_OFF HIGH
 
 
 //debug LED blink
@@ -312,11 +316,13 @@ void InitMotorPins()
 
 void ThrottleReleasedISR()
 {
+  digitalWrite(LED_BUILTIN, LED_OFF);
 	if(RampState != RAMP_DECELERATING )//make sure we are not already decelarating
 	{
 		RampState = RAMP_STARTED_DECELERATING;//ramp down the speed
 	}
-  //ScreenLog("Stop");
+  ScreenLog("Stop");
+  
 }
 
 void MotorForward()
@@ -333,8 +339,10 @@ void InitISR()
 {
   pinMode(THROTTLE_PIN,INPUT_PULLUP); 
 	//initialise interrupts
-	attachInterrupt(digitalPinToInterrupt(THROTTLE_PIN), ThrottleReleasedISR, RISING);
-//    attachInterrupt(digitalPinToInterrupt(ENGINE_START_BUTTON_PIN), EngineStartButtonISR, FALLING); 
+	
+	
+	//attachInterrupt(digitalPinToInterrupt(THROTTLE_PIN), ThrottleReleasedISR, RISING);
+
 }
 
 void ProcessRamp()
@@ -478,14 +486,16 @@ void loop(void)
   if(CheckThrottle() == THROTTLE_PRESSED && (RampState == RAMP_FINISHED_DECELERATING)) //&& (CurrState!= STATE_OFF))
   {
 	  RampState = RAMP_STARTED_ACCELERATING;
+    //ScreenLog("go");
+    digitalWrite(LED_BUILTIN, LED_ON);
     //ScreenLog("Vroom");
      
+  }
+  else if(CheckThrottle() == THROTTLE_NOT_PRESSED && ((RampState != RAMP_FINISHED_DECELERATING) || RampState != RAMP_FINISHED_DECELERATING) )
+  {
+    ThrottleReleasedISR();
   }
 
   ProcessRamp(); //process movement
   
 }
-
-
-
-

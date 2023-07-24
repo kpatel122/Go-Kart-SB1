@@ -30,8 +30,8 @@ MCUFRIEND_kbv tft;
 //IN3  PC15
 
 /*Gear shifters*/
-#define GEAR_SHIFT_UP_PIN PB12
-#define GEAR_SHIFT_DOWN_PIN PB13
+#define GEAR_SHIFT_UP_PIN PB13
+#define GEAR_SHIFT_DOWN_PIN PB12
 
 /*buttons*/
 #define ENGINE_START_BUTTON_PIN PA9
@@ -61,7 +61,7 @@ enum GEAR_SHIFT
 };
 
 GEAR_SHIFT NextGearShift = GEAR_SHIFT_NONE;
-GEAR CurrentGear = GEAR_FIRST;//GEAR_NEUTRAL;
+GEAR CurrentGear = GEAR_NEUTRAL;
 GEAR NewGear = GEAR_NEUTRAL;
 
 /*Serial*/
@@ -138,6 +138,11 @@ int CurrMotorSpeed = 0;
 #define LED_ON LOW
 #define LED_OFF HIGH
 
+/*buttons*/
+#define ENGINE_START_BUTTON_PIN PA9
+#define ENGINE_START_BUTTON_DEBOUNCE 1000 //debounce speed between engine button presses
+#define ENGINE_START_PRESSED HIGH //engine start button active high
+
 
 //debug LED blink
 void blink(int num, int ms)
@@ -165,8 +170,8 @@ void InitSoundPlayer()
   else
   {
     //blink(5,1000);
-    Serial.println(F("DFPlayer Mini online."));
-    ScreenLog("Sound OK!");
+    //Serial.println(F("DFPlayer Mini online."));
+    //ScreenLog("Sound OK!");
      
   }  
 }
@@ -259,6 +264,9 @@ void ProcessGearShift()
       //showmsgXY(210, 200, 4, &FreeSansBold24pt7b, "F",TFT_GREEN);
       UpdateScreenGear("F",TFT_GREEN);
 
+      digitalWrite(MOTOR_DRIVER_DIR_PIN,MOTOR_FORWARD); //set motor direction forward
+      SetRampProfile(STATE_MOVING_FORWARD);
+
       return;
     }
     if(CurrentGear == GEAR_REVERSE)
@@ -278,6 +286,11 @@ void ProcessGearShift()
       //Serial3.write(CurrentGear);
       //showmsgXY(210, 200, 4, &FreeSansBold24pt7b, "R",TFT_RED);
       UpdateScreenGear("R",TFT_RED);
+
+      digitalWrite(MOTOR_DRIVER_DIR_PIN,MOTOR_BACKWARD); //set motor direction backward
+      SetRampProfile(STATE_MOVING_REVERSE);
+
+
       return;
     }
     if(CurrentGear == GEAR_FIRST)
@@ -316,12 +329,12 @@ void InitMotorPins()
 
 void ThrottleReleasedISR()
 {
-  digitalWrite(LED_BUILTIN, LED_OFF);
+  //digitalWrite(LED_BUILTIN, LED_OFF);
 	if(RampState != RAMP_DECELERATING )//make sure we are not already decelarating
 	{
 		RampState = RAMP_STARTED_DECELERATING;//ramp down the speed
 	}
-  ScreenLog("Stop");
+  //ScreenLog("Stop");
   
 }
 
@@ -345,101 +358,161 @@ void InitISR()
 
 }
 
+void SetRampProfile(KART_STATE direction)
+{
+  //set the forward or reverse ramp vaiables
+  if(direction == STATE_MOVING_FORWARD)
+  {
+    RampStartSpeed = RAMP_FORWARD_START_SPEED;
+    RampEndSpeed = RAMP_FORWARD_END_SPEED;
+    RampTimeSeconds = RAMP_FORWARD_TIME_SECONDS;
+  }
+  else if (direction == STATE_MOVING_REVERSE)
+  {
+    RampStartSpeed = RAMP_REVERSE_START_SPEED;
+    RampEndSpeed = RAMP_REVERSE_END_SPEED;
+    RampTimeSeconds = RAMP_REVERSE_TIME_SECONDS;
+  }
+
+}
+
 void ProcessRamp()
 {
-	static unsigned long starttime; //when the ramp was started
-	unsigned long timedelta; //time difference from when the ramp was started 
-	static long resolutioncounter = 0; //resolution of ramp
+  static unsigned long starttime; //when the ramp was started
+  unsigned long timedelta; //time difference from when the ramp was started 
+  static long resolutioncounter = 0; //resolution of ramp
 
-	switch(RampState)
-	{
-		case RAMP_DECELERATING:
-		{
+  switch(RampState)
+  {
+    case RAMP_DECELERATING:
+    {
 
-			//get the current delta from when the decelarion was started
-			timedelta = millis() - starttime;
+      //get the current delta from when the decelarion was started
+      timedelta = millis() - starttime;
 
-			//motor speed is mapped against the decelation time- TODO make this is percentage
-			//of current speed
-			CurrMotorSpeed = map(timedelta, 0, RAMP_DECELERATE_TIME, RampStartSpeed, 0);
+      //motor speed is mapped against the decelation time- TODO make this is percentage
+      //of current speed
+      CurrMotorSpeed = map(timedelta, 0, RAMP_DECELERATE_TIME, RampStartSpeed, 0);
 
-			//continue to move at the slower decelaration speed to avoif sudden jerky stop
-			MotorForward();
-						
-			//cehck if decelaration has finished
-			if(CurrMotorSpeed <= 0)
-			{
-				RampState = RAMP_FINISHED_DECELERATING;
-			}
-		}break;
-		case RAMP_ACCELERATING:
-		{
-			/*
-			Serial.print("RampEndSpeed ");
-			Serial.print(RampEndSpeed);
-			Serial.print(" CurrMotorSpeed ");
-			Serial.println(CurrMotorSpeed);
+      //continue to move at the slower decelaration speed to avoif sudden jerky stop
+      MotorForward();
+            
+      //cehck if decelaration has finished
+      if(CurrMotorSpeed <= 0)
+      {
+        RampState = RAMP_FINISHED_DECELERATING;
+      }
+    }break;
+    case RAMP_ACCELERATING:
+    {
+      /*
+      Serial.print("RampEndSpeed ");
+      Serial.print(RampEndSpeed);
+      Serial.print(" CurrMotorSpeed ");
+      Serial.println(CurrMotorSpeed);
 */
-			//this could be going forward or backward, the speed profiles for either is set SetRampProfile
-			//called in the gear change
-			
-			//get time delta from current time to when the throttle was pressed
-			timedelta = millis() - starttime;
-			CurrMotorSpeed = map(timedelta, 0, RampTimeSeconds*1000, RampStartSpeed, RampEndSpeed);
+      //this could be going forward or backward, the speed profiles for either is set SetRampProfile
+      //called in the gear change
+      
+      //get time delta from current time to when the throttle was pressed
+      timedelta = millis() - starttime;
+      CurrMotorSpeed = map(timedelta, 0, RampTimeSeconds*1000, RampStartSpeed, RampEndSpeed);
 
-			MotorForward();
+      MotorForward();
 
-			if(CurrMotorSpeed >= RampEndSpeed)
-			{
-				//Serial.println("***********Ramp Complete******** ");
-				RampState = RAMP_FINISHED_ACCELERATING;
-			}
+      if(CurrMotorSpeed >= RampEndSpeed)
+      {
+        //Serial.println("***********Ramp Complete******** ");
+        RampState = RAMP_FINISHED_ACCELERATING;
+      }
 
-		}break;
+    }break;
 
-		case RAMP_NOT_READY:
-		{
+    case RAMP_NOT_READY:
+    {
 
-		}break;
-		case RAMP_READY:
-		{
+    }break;
+    case RAMP_READY:
+    {
 
-		}break;
-		case RAMP_STARTED_ACCELERATING:
-		{
-			 
-			RampState = RAMP_ACCELERATING;
-			starttime = millis();
-			resolutioncounter = 0;
-			timedelta = 0;
-			 
-			RampStartSpeed = CurrMotorSpeed;
-			MotorForward();//pMotorMove();
-
-
-		}break;
-		case RAMP_STARTED_DECELERATING:
-		{
-			//setup decelarating values
-			RampState = RAMP_DECELERATING;
-			starttime = millis();
-			resolutioncounter = 0;
-			timedelta = 0;
-			RampStartSpeed = CurrMotorSpeed;
-
-		}break;
-		case RAMP_STOPPED:
-		{
-
-		}break;
-		case RAMP_FINISHED_DECELERATING:
-		case RAMP_FINISHED_ACCELERATING:
-		{
+    }break;
+    case RAMP_STARTED_ACCELERATING:
+    {
+       
+      RampState = RAMP_ACCELERATING;
+      starttime = millis();
+      resolutioncounter = 0;
+      timedelta = 0;
+       
+      RampStartSpeed = CurrMotorSpeed;
+      MotorForward();//pMotorMove();
 
 
-		}break;
-	}
+    }break;
+    case RAMP_STARTED_DECELERATING:
+    {
+      //setup decelarating values
+      RampState = RAMP_DECELERATING;
+      starttime = millis();
+      resolutioncounter = 0;
+      timedelta = 0;
+      RampStartSpeed = CurrMotorSpeed;
 
+    }break;
+    case RAMP_STOPPED:
+    {
+
+    }break;
+    case RAMP_FINISHED_DECELERATING:
+    case RAMP_FINISHED_ACCELERATING:
+    {
+
+
+    }break;
+  }
+
+}
+
+void WaitForEngineStartButton()
+{
+  //infinite loop until engine start button pressed
+  while(CheckEngineStartButton() != ENGINE_START_PRESSED){}
+
+  //play engine start sound
+  DFPlayer.play(2);//play engine start sound FX
+  CurrState = STATE_READY;
+
+
+  //ScreenLog("Engine started");
+}
+
+
+void EngineStartButtonISR()
+{
+
+  if(RampState != RAMP_FINISHED_DECELERATING) //only change if we have stopped, also prevents ghost button presses from motor inductance
+    return;
+
+
+  //tmp using the engine button as gear switch until paddle shifts are completed
+  volatile static unsigned long lastInterruptTime = 0;
+  unsigned long interruptTime = millis();
+  // If interrupts come faster than ENGINE_START_BUTTON_DEBOUNCE, assume it's a bounce and ignore
+  if (interruptTime - lastInterruptTime > ENGINE_START_BUTTON_DEBOUNCE)
+  {
+
+     if(CurrState == STATE_OFF)
+     {
+       WaitForEngineStartButton();//dont do anything unless engine start button has been pressed
+     }
+  }
+  lastInterruptTime = interruptTime;
+
+}
+
+inline int  CheckEngineStartButton()
+{
+  return digitalRead(ENGINE_START_BUTTON_PIN) ;
 }
 
 void setup(void)
@@ -487,7 +560,7 @@ void loop(void)
   {
 	  RampState = RAMP_STARTED_ACCELERATING;
     //ScreenLog("go");
-    digitalWrite(LED_BUILTIN, LED_ON);
+    //digitalWrite(LED_BUILTIN, LED_ON);
     //ScreenLog("Vroom");
      
   }
@@ -497,5 +570,10 @@ void loop(void)
   }
 
   ProcessRamp(); //process movement
+
+  if(CheckEngineStartButton() == ENGINE_START_PRESSED)
+  {
+    EngineStartButtonISR();
+  }
   
 }

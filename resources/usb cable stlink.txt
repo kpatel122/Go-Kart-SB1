@@ -1,0 +1,6 @@
+usb cable->stlink
+black->gnd
+white->clk
+green->dio
+red-> 3.3v
+

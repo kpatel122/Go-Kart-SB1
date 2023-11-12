@@ -1,7 +1,5 @@
 #include "Arduino.h"
 
-
-
 #include "DFRobotDFPlayerMini.h"
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <MCUFRIEND_kbv.h>   // Hardware-specific library
@@ -80,11 +78,10 @@ const byte  RAMP_FORWARD_END_SPEED  = 150; //max 255
 const byte RAMP_FORWARD_START_SPEED = 120;
 const byte  RAMP_FORWARD_TIME_SECONDS = 2; // how long it takes to get to max speed
 
+
 const byte  RAMP_REVERSE_END_SPEED = 150;
-
-
 const byte  RAMP_REVERSE_START_SPEED = 120;
-const byte  RAMP_REVERSE_TIME_SECONDS = 2;
+const byte  RAMP_REVERSE_TIME_SECONDS = 2; //how long it takes to come to a stop
 
 //stop instantly would cause a jerk- smooth stop instead
  #define  RAMP_DECELERATE_TIME 1000 //how quickly we should stop- TODO needs to be a % of our speed
@@ -93,6 +90,7 @@ byte RampStartSpeed = RAMP_FORWARD_START_SPEED;
 byte RampEndSpeed = RAMP_FORWARD_END_SPEED;
 byte RampTimeSeconds = RAMP_FORWARD_TIME_SECONDS;
 
+//state machine of the go kart speed
 enum RAMP_STATE
 {
 	RAMP_NOT_READY,
@@ -121,6 +119,7 @@ enum KART_STATE
   STATE_NOT_MOVING
 };
 
+//state of the go kart
 volatile KART_STATE CurrState = STATE_OFF;
 KART_STATE PrevState = STATE_OFF;
 
@@ -176,13 +175,14 @@ void InitSoundPlayer()
   }  
 }
 
-
+//initial state of the gear shifters
 void InitGearShiftPins()
 {
   pinMode(GEAR_SHIFT_UP_PIN, INPUT_PULLUP);
   pinMode(GEAR_SHIFT_DOWN_PIN, INPUT_PULLUP);
 }
 
+//log a debug message on the screen
 void ScreenLog(const char *msg)
 {
    static int logX = 10;
@@ -198,14 +198,14 @@ void ScreenLog(const char *msg)
 
     logY += 20;
 
-    
 }
 
+//update the LCD display
 void UpdateScreenGear(const char *msg, int colour)
 {
 
   static int gearPosX = 210;
-   static int gearPosY = 200;
+  static int gearPosY = 200;
 
   //clear the old gear text
   tft.fillRect(gearPosX+10, 60, 125, 150, TFT_BLACK);
@@ -217,6 +217,7 @@ void UpdateScreenGear(const char *msg, int colour)
     tft.print(msg);
 }
 
+//prints a message on the screen at a given XY position
 void showmsgXY(int x, int y, int sz, const GFXfont *f, const char *msg, int colour)
 {
 	tft.fillScreen(TFT_BLACK);
@@ -232,9 +233,9 @@ void showmsgXY(int x, int y, int sz, const GFXfont *f, const char *msg, int colo
     //delay(1000);
 }
 
+//checks if a gear paddle was pressed
 bool CheckForGearShift()
 {
-
 
   if(digitalRead(GEAR_SHIFT_UP_PIN) == LOW)
   {
@@ -253,6 +254,7 @@ bool CheckForGearShift()
   return false;
 }
 
+//sets the calue of the next gear shift
 void ProcessGearShift()
 {
   if(NextGearShift == GEAR_SHIFT_UP)
@@ -304,6 +306,7 @@ void ProcessGearShift()
   }
 }
 
+//initialise the LCD display
 void InitScreen()
 {
     uint16_t ID = tft.readID();
@@ -519,22 +522,20 @@ void setup(void)
 {
     Serial.begin(BAUD);
 
-    
-
+    //call init methods 
     InitGearShiftPins();
-
-    
     InitScreen();
+
+    //debug LED
     pinMode(LED_BUILTIN, OUTPUT);
-    
     digitalWrite(LED_BUILTIN,HIGH); //active low
 
+    //call init method which may need the debug LED
     InitSoundPlayer();
-
-
     InitMotorPins();
     InitISR();
 
+    //initial gear state
     UpdateScreenGear("N",TFT_WHITE);
      
     
